@@ -2,7 +2,9 @@ package alf
 
 import (
 	"encoding/base64"
+	"time"
 
+	"github.com/facebookgo/stackerr"
 	"github.com/franela/goreq"
 )
 
@@ -19,12 +21,14 @@ type OAuthTokenManager struct {
 	ClientId      string
 	ClientSecret  string
 	Authorization string
+	Debug         bool
+	Timeout       time.Duration
 	token         *Token
 }
 
 var defaultTokenManager TokenManager
 
-func NewTokenManager(tokenEndPoint, clientId, clientSecret string) *OAuthTokenManager {
+func NewTokenManager(tokenEndPoint, clientId, clientSecret string, debug bool, timeout time.Duration) *OAuthTokenManager {
 	authorizationString := []byte(clientId + ":" + clientSecret)
 
 	tm := &OAuthTokenManager{
@@ -32,6 +36,8 @@ func NewTokenManager(tokenEndPoint, clientId, clientSecret string) *OAuthTokenMa
 		ClientId:      clientId,
 		ClientSecret:  clientSecret,
 		Authorization: "Basic " + base64.StdEncoding.EncodeToString(authorizationString),
+		Debug:         debug,
+		Timeout:       timeout,
 	}
 
 	return tm
@@ -45,10 +51,12 @@ func (tm *OAuthTokenManager) GetToken() (*Token, error) {
 			ContentType: "application/x-www-form-urlencoded",
 			Uri:         tm.TokenEndPoint,
 			Body:        GrantType,
+			ShowDebug:   tm.Debug,
+			Timeout:     tm.Timeout,
 		}.WithHeader("Authorization", tm.Authorization).Do()
 
 		if err != nil {
-			return nil, err
+			return nil, stackerr.Wrap(err)
 		}
 
 		defer resp.Body.Close()

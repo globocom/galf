@@ -40,11 +40,15 @@ func (s *ClientSuite) TestAlfClient(c *C) {
 
 	// tokenManager
 	// Altera os valores do settings para teste
-	settings.Backtage.UrlToken = fmt.Sprintf("%s/token", ts.URL)
-	settings.Backtage.ClientId = "foo"
-	settings.Backtage.ClientSecret = "bar"
+	settings.Backtage.Token.Url = fmt.Sprintf("%s/token", ts.URL)
+	settings.Backtage.Token.ClientId = "foo"
+	settings.Backtage.Token.ClientSecret = "bar"
 
-	tm := NewTokenManager(settings.Backtage.UrlToken, settings.Backtage.ClientId, settings.Backtage.ClientSecret)
+	tm := NewTokenManager(settings.Backtage.Token.Url,
+		settings.Backtage.Token.ClientId,
+		settings.Backtage.Token.ClientSecret,
+		settings.Backtage.Token.Debug,
+		settings.Backtage.Token.Timeout)
 
 	SetDefaultTokenManager(tm)
 
