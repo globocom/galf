@@ -82,5 +82,5 @@ func (s *ClientSuite) TestAlfClient(c *C) {
 	c.Assert(resp.StatusCode, Equals, http.StatusNoContent)
 
 	// Retorna os valores padrões
-	settings.LoadConfig()
+	settings.LoadSettings()
 }
