@@ -5,15 +5,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"testing"
 
 	"gitlab.globoi.com/bastian/falkor/settings"
 	. "gopkg.in/check.v1"
 )
-
-func TestClient(t *testing.T) {
-	TestingT(t)
-}
 
 type ClientSuite struct{}
 
