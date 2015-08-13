@@ -15,6 +15,10 @@ type Token struct {
 	Authorization string
 }
 
+func (t *Token) isValid() bool {
+	return time.Now().Before(t.expires_on)
+}
+
 func newToken(body io.Reader) (*Token, error) {
 	var token Token
 	err := json.NewDecoder(body).Decode(&token)
@@ -26,8 +30,4 @@ func newToken(body io.Reader) (*Token, error) {
 	token.expires_on = time.Now().Add(time.Duration(token.ExpiresIn) * time.Second)
 	token.Authorization = token.TokenType + " " + token.AccessToken
 	return &token, nil
-}
-
-func (t *Token) isValid() bool {
-	return time.Now().Before(t.expires_on)
 }
