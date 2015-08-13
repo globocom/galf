@@ -33,6 +33,9 @@ func (s *ClientSuite) TestAlfClient(c *C) {
 			}))
 	defer ts.Close()
 
+	err := settings.LoadSettings()
+	c.Assert(err, IsNil)
+
 	// tokenManager
 	// Altera os valores do settings para teste
 	settings.Backstage.Token.Url = fmt.Sprintf("%s/token", ts.URL)
