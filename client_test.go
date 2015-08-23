@@ -50,9 +50,7 @@ func (s *ClientSuite) TestAlfClient(c *C) {
 
 	SetDefaultTokenManager(tm)
 
-	// NewClient retorna um http.Client
 	client := NewClient()
-	c.Assert(client.httpClient, FitsTypeOf, &http.Client{})
 
 	// Testa métodos do Client
 	urlStr := fmt.Sprintf("%s/feed/1", ts.URL)
