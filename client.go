@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"io"
 	"io/ioutil"
-	"math"
 	"time"
 
 	"github.com/facebookgo/stackerr"
@@ -19,7 +18,7 @@ type Client struct {
 	ShowDebug    bool
 }
 
-var DefaultTimeout = 5 * time.Second
+var DefaultTimeout = 10 * time.Second
 
 func SetConnectTimeout(duration time.Duration) {
 	DefaultTimeout = duration
@@ -34,28 +33,9 @@ func NewClient(timeout ...time.Duration) *Client {
 		tokenManager: defaultTokenManager,
 		Timeout:      timeOut,
 		MaxRetries:   2,
-		Backoff:      DefaultBackoff,
+		Backoff:      ConstantBackOff,
 		ShowDebug:    false,
 	}
-}
-
-// BackoffStrategy is used to determine how long a retry request should wait until attempted
-type BackoffStrategy func(retry int) time.Duration
-
-// DefaultBackoff always returns 100 Millisecond
-func DefaultBackoff(_ int) time.Duration {
-	return 100 * time.Millisecond
-}
-
-// ExponentialBackoff returns ever increasing backoffs by a power of 2
-func ExponentialBackoff(i int) time.Duration {
-	return time.Duration(math.Pow(2, float64(i))) * time.Second
-}
-
-// LinearBackoff returns increasing durations, each a second longer than the last
-// n seconds where n is the retry number
-func LinearBackoff(i int) time.Duration {
-	return time.Duration(i) * time.Second
 }
 
 func (c *Client) Get(urlStr string) (*goreq.Response, error) {
