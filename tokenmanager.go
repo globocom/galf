@@ -4,8 +4,11 @@ import (
 	"encoding/base64"
 	"time"
 
+	goerrors "errors"
+
 	"gitlab.globoi.com/bastian/falkor/errors"
 
+	"github.com/afex/hystrix-go/hystrix"
 	"github.com/facebookgo/stackerr"
 	"github.com/franela/goreq"
 )
@@ -79,18 +82,30 @@ func (tm *OAuthTokenManager) GetToken() (*Token, error) {
 }
 
 func requestToken(tm *OAuthTokenManager) (*goreq.Response, error) {
-	resp, err := goreq.Request{
-		Method:      "POST",
-		ContentType: "application/x-www-form-urlencoded",
-		Uri:         tm.TokenEndPoint,
-		Body:        GrantType,
-		ShowDebug:   tm.Debug,
-		Timeout:     tm.Timeout,
-	}.WithHeader("Authorization", tm.Authorization).Do()
+	output := make(chan *goreq.Response, 1)
+	errors := hystrix.Go("circuit_backstage_api_token", func() error {
+		resp, err := goreq.Request{
+			Method:      "POST",
+			ContentType: "application/x-www-form-urlencoded",
+			Uri:         tm.TokenEndPoint,
+			Body:        GrantType,
+			ShowDebug:   tm.Debug,
+			Timeout:     tm.Timeout,
+		}.WithHeader("Authorization", tm.Authorization).Do()
 
-	if err != nil {
-		return nil, stackerr.Wrap(err)
+		if err != nil || resp.StatusCode >= 400 {
+			return goerrors.New("Erro ao pegar um token do Backstage API.")
+		}
+
+		output <- resp
+
+		return nil
+	}, nil)
+
+	select {
+	case out := <-output:
+		return out, nil
+	case err := <-errors:
+		return nil, err
 	}
-
-	return resp, nil
 }
