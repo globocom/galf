@@ -4,8 +4,7 @@ import (
 	"encoding/base64"
 	"time"
 
-	goerrors "errors"
-
+	log "github.com/Sirupsen/logrus"
 	"gitlab.globoi.com/bastian/falkor/errors"
 
 	"github.com/afex/hystrix-go/hystrix"
@@ -14,6 +13,11 @@ import (
 )
 
 const GrantType = "grant_type=client_credentials"
+
+var (
+	defaultTokenMaxRetries = 2
+	defaultTokenManager    TokenManager
+)
 
 type TokenManager interface {
 	GetToken() (*Token, error)
@@ -29,7 +33,13 @@ type OAuthTokenManager struct {
 	token         *Token
 }
 
-var defaultTokenManager TokenManager
+func SetDefaultTokenMaxRetries(retries int) {
+	defaultTokenMaxRetries = retries
+}
+
+func SetDefaultTokenManager(t TokenManager) {
+	defaultTokenManager = t
+}
 
 func NewTokenManager(tokenEndPoint, clientId, clientSecret string, debug bool, timeout time.Duration) *OAuthTokenManager {
 	authorizationString := []byte(clientId + ":" + clientSecret)
@@ -46,36 +56,36 @@ func NewTokenManager(tokenEndPoint, clientId, clientSecret string, debug bool, t
 	return tm
 }
 
-func SetDefaultTokenManager(t TokenManager) {
-	defaultTokenManager = t
-}
-
 func (tm *OAuthTokenManager) GetToken() (*Token, error) {
 
 	if tm.token == nil || !tm.token.isValid() {
 		var err error
 		var resp *goreq.Response
 
-		maxRetries := 2
-		for i := 0; i < maxRetries; i++ {
-			if resp, err = requestToken(tm); err != nil {
-				return nil, stackerr.Wrap(err)
+		for i := 0; i < defaultTokenMaxRetries; i++ {
+			resp, err = requestToken(tm)
+
+			if i < c.MaxRetries-1 {
+				// wait
+				time.Sleep(c.Backoff(i))
 			}
 
-			// 200 and 300 level errors are considered success and we are done
-			if resp.StatusCode < 400 {
-				defer resp.Body.Close()
-				tm.token, err = newToken(resp.Body)
-				if err != nil {
-					return nil, err
+			if err != nil {
+				if _, ok := err.(*errors.HTTP); ok {
+					// wait 50ms
+					time.Sleep(50 * time.Millisecond)
 				}
-				return tm.token, nil
 			}
 
-			// wait 50ms
-			time.Sleep(50 * time.Millisecond)
+			defer resp.Body.Close()
+			tm.token, err = newToken(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			return tm.token, nil
 		}
-		return nil, errors.NewHttpError(resp.StatusCode, "Não foi possível recupera o token")
+
+		return nil, err
 	}
 
 	return tm.token, nil
@@ -84,6 +94,7 @@ func (tm *OAuthTokenManager) GetToken() (*Token, error) {
 func requestToken(tm *OAuthTokenManager) (*goreq.Response, error) {
 	output := make(chan *goreq.Response, 1)
 	errors := hystrix.Go("circuit_backstage_api_token", func() error {
+
 		resp, err := goreq.Request{
 			Method:      "POST",
 			ContentType: "application/x-www-form-urlencoded",
@@ -93,8 +104,19 @@ func requestToken(tm *OAuthTokenManager) (*goreq.Response, error) {
 			Timeout:     tm.Timeout,
 		}.WithHeader("Authorization", tm.Authorization).Do()
 
-		if err != nil || resp.StatusCode >= 400 {
-			return goerrors.New("Erro ao pegar um token do Backstage API.")
+		if err != nil {
+			return stackerr.Wrap(err)
+		}
+
+		if resp.StatusCode >= 300 {
+			log.WithFields(log.Fields{
+				"uri":           tm.TokenEndPoint,
+				"statusCode":    resp.StatusCode,
+				"authorization": tm.Authorization,
+			}).Error("Erro ao pegar um token do Backstage API")
+
+			body, _ := resp.Body.ToString()
+			return errors.NewHttpError(resp.StatusCode, body)
 		}
 
 		output <- resp

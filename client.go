@@ -18,21 +18,28 @@ type Client struct {
 	ShowDebug    bool
 }
 
-var DefaultTimeout = 10 * time.Second
+var (
+	defaultClientTimeout    = 10 * time.Second
+	defaultClientMaxRetries = 2
+)
 
-func SetConnectTimeout(duration time.Duration) {
-	DefaultTimeout = duration
+func SetDefaultClientConnectTimeout(duration time.Duration) {
+	defaultClientTimeout = duration
+}
+
+func SetDefaultClientMaxRetries(retries int) {
+	defaultClientMaxRetries = retries
 }
 
 func NewClient(timeout ...time.Duration) *Client {
-	timeOut := DefaultTimeout
+	timeOut := defaultClientTimeout
 	if len(timeout) > 0 {
 		timeOut = timeout[0]
 	}
 	return &Client{
 		tokenManager: defaultTokenManager,
 		Timeout:      timeOut,
-		MaxRetries:   2,
+		MaxRetries:   defaultClientMaxRetries,
 		Backoff:      ConstantBackOff,
 		ShowDebug:    false,
 	}
@@ -58,9 +65,8 @@ func (c *Client) retry(method string, urlStr string, body io.Reader) (resp *gore
 
 	var originalBody []byte
 	if body != nil {
-		originalBody, err = ioutil.ReadAll(body)
-		if err != nil {
-			return nil, err
+		if originalBody, err = ioutil.ReadAll(body); err != nil {
+			return nil, stackerr.Wrap(err)
 		}
 	}
 
@@ -70,13 +76,14 @@ func (c *Client) retry(method string, urlStr string, body io.Reader) (resp *gore
 		}
 		resp, err = c.do(method, urlStr, body)
 
-		// 200 and 300 level errors are considered success and we are done
-		if err == nil && resp.StatusCode < 400 {
+		if err == nil && resp.StatusCode < 300 {
 			return resp, nil
 		}
 
-		// wait
-		time.Sleep(c.Backoff(i))
+		if i < c.MaxRetries-1 {
+			// wait
+			time.Sleep(c.Backoff(i))
+		}
 	}
 
 	return resp, err
