@@ -18,30 +18,22 @@ type Client struct {
 	ShowDebug    bool
 }
 
-var (
-	defaultClientTimeout    = 10 * time.Second
-	defaultClientMaxRetries = 2
+const (
+	DefaultClientTimeout    = 10 * time.Second
+	DefaultClientMaxRetries = 2
 )
 
-func SetDefaultClientConnectTimeout(duration time.Duration) {
-	defaultClientTimeout = duration
-}
-
-func SetDefaultClientMaxRetries(retries int) {
-	defaultClientMaxRetries = retries
-}
-
-func NewClient(timeout ...time.Duration) *Client {
-	timeOut := defaultClientTimeout
+func NewClient(tokenManager TokenManager, backOff BackoffStrategy, maxRetries int, debug bool, timeout ...time.Duration) *Client {
+	timeOut := DefaultClientTimeout
 	if len(timeout) > 0 {
 		timeOut = timeout[0]
 	}
 	return &Client{
-		tokenManager: defaultTokenManager,
+		tokenManager: tokenManager,
 		Timeout:      timeOut,
-		MaxRetries:   defaultClientMaxRetries,
-		Backoff:      ConstantBackOff,
-		ShowDebug:    false,
+		MaxRetries:   maxRetries,
+		Backoff:      backOff,
+		ShowDebug:    debug,
 	}
 }
 
@@ -74,14 +66,13 @@ func (c *Client) retry(method string, urlStr string, body io.Reader) (resp *gore
 		if len(originalBody) > 0 {
 			body = bytes.NewBuffer(originalBody)
 		}
-		resp, err = c.do(method, urlStr, body)
 
+		resp, err = c.do(method, urlStr, body)
 		if err == nil && resp.StatusCode < 300 {
 			return resp, nil
 		}
 
 		if i < c.MaxRetries-1 {
-			// wait
 			time.Sleep(c.Backoff(i))
 		}
 	}

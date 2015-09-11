@@ -12,11 +12,10 @@ import (
 	"github.com/franela/goreq"
 )
 
-const GrantType = "grant_type=client_credentials"
-
-var (
-	defaultTokenMaxRetries = 2
-	defaultTokenManager    TokenManager
+const (
+	grantType                 = "grant_type=client_credentials"
+	DefaultTokenMaxRetries    = 2
+	DefaultTokenClientTimeout = 1 * time.Second
 )
 
 type TokenManager interface {
@@ -31,17 +30,17 @@ type OAuthTokenManager struct {
 	Debug         bool
 	Timeout       time.Duration
 	token         *Token
+	MaxRetries    int
+	Backoff       BackoffStrategy
 }
 
-func SetDefaultTokenMaxRetries(retries int) {
-	defaultTokenMaxRetries = retries
-}
+func NewTokenManager(tokenEndPoint, clientId, clientSecret string, backOff BackoffStrategy,
+	maxRetries int, debug bool, timeout ...time.Duration) *OAuthTokenManager {
+	timeOut := DefaultTokenClientTimeout
+	if len(timeout) > 0 {
+		timeOut = timeout[0]
+	}
 
-func SetDefaultTokenManager(t TokenManager) {
-	defaultTokenManager = t
-}
-
-func NewTokenManager(tokenEndPoint, clientId, clientSecret string, debug bool, timeout time.Duration) *OAuthTokenManager {
 	authorizationString := []byte(clientId + ":" + clientSecret)
 
 	tm := &OAuthTokenManager{
@@ -50,7 +49,9 @@ func NewTokenManager(tokenEndPoint, clientId, clientSecret string, debug bool, t
 		ClientSecret:  clientSecret,
 		Authorization: "Basic " + base64.StdEncoding.EncodeToString(authorizationString),
 		Debug:         debug,
-		Timeout:       timeout,
+		Timeout:       timeOut,
+		MaxRetries:    maxRetries,
+		Backoff:       backOff,
 	}
 
 	return tm
@@ -62,29 +63,23 @@ func (tm *OAuthTokenManager) GetToken() (*Token, error) {
 		var err error
 		var resp *goreq.Response
 
-		for i := 0; i < defaultTokenMaxRetries; i++ {
+		for i := 0; i < tm.MaxRetries; i++ {
 			resp, err = requestToken(tm)
 
-			if i < c.MaxRetries-1 {
-				// wait
-				time.Sleep(c.Backoff(i))
-			}
-
 			if err != nil {
-				if _, ok := err.(*errors.HTTP); ok {
-					// wait 50ms
+				if i < tm.MaxRetries-1 {
 					time.Sleep(50 * time.Millisecond)
+					continue
 				}
+				return nil, err
 			}
 
 			defer resp.Body.Close()
-			tm.token, err = newToken(resp.Body)
-			if err != nil {
+			if tm.token, err = newToken(resp.Body); err != nil {
 				return nil, err
 			}
 			return tm.token, nil
 		}
-
 		return nil, err
 	}
 
@@ -99,7 +94,7 @@ func requestToken(tm *OAuthTokenManager) (*goreq.Response, error) {
 			Method:      "POST",
 			ContentType: "application/x-www-form-urlencoded",
 			Uri:         tm.TokenEndPoint,
-			Body:        GrantType,
+			Body:        grantType,
 			ShowDebug:   tm.Debug,
 			Timeout:     tm.Timeout,
 		}.WithHeader("Authorization", tm.Authorization).Do()
@@ -113,6 +108,7 @@ func requestToken(tm *OAuthTokenManager) (*goreq.Response, error) {
 				"uri":           tm.TokenEndPoint,
 				"statusCode":    resp.StatusCode,
 				"authorization": tm.Authorization,
+				"Body":          grantType,
 			}).Error("Erro ao pegar um token do Backstage API")
 
 			body, _ := resp.Body.ToString()
