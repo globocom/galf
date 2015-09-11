@@ -5,6 +5,8 @@ import (
 	"io"
 	"strings"
 	"time"
+
+	"github.com/facebookgo/stackerr"
 )
 
 type Token struct {
@@ -23,7 +25,7 @@ func newToken(body io.Reader) (*Token, error) {
 	var token Token
 	err := json.NewDecoder(body).Decode(&token)
 	if err != nil {
-		return nil, err
+		return nil, stackerr.Wrap(err)
 	}
 
 	token.TokenType = strings.Title(token.TokenType)
