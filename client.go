@@ -6,34 +6,72 @@ import (
 	"io/ioutil"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/facebookgo/stackerr"
 	"github.com/franela/goreq"
 )
-
-type Client struct {
-	tokenManager TokenManager
-	Timeout      time.Duration
-	MaxRetries   int
-	Backoff      BackoffStrategy
-	ShowDebug    bool
-}
 
 const (
 	DefaultClientTimeout    = 10 * time.Second
 	DefaultClientMaxRetries = 2
 )
 
-func NewClient(tokenManager TokenManager, backOff BackoffStrategy, maxRetries int, debug bool, timeout ...time.Duration) *Client {
-	timeOut := DefaultClientTimeout
-	if len(timeout) > 0 {
-		timeOut = timeout[0]
+type (
+	CircuitConfig struct {
+		Name string
 	}
+
+	ClientOptions struct {
+		Timeout       time.Duration
+		Backoff       BackoffStrategy
+		MaxRetries    int
+		ShowDebug     bool
+		CircuitConfig *CircuitConfig
+	}
+
+	Client struct {
+		TokenManager TokenManager
+		Options      ClientOptions
+	}
+)
+
+var (
+	defaultClientOptions = ClientOptions{
+		Timeout:       DefaultClientTimeout,
+		MaxRetries:    DefaultClientMaxRetries,
+		Backoff:       ConstantBackOff,
+		ShowDebug:     false,
+		CircuitConfig: nil,
+	}
+)
+
+func NewClientOptions(timeout time.Duration, debug bool, maxRetries int, circuitConfig CircuitConfig, backoff ...BackoffStrategy) ClientOptions {
+	clientBackoff := ConstantBackOff
+	if len(backoff) > 0 {
+		clientBackoff = backoff[0]
+	}
+
+	return ClientOptions{
+		Timeout:       timeout,
+		ShowDebug:     debug,
+		MaxRetries:    maxRetries,
+		Backoff:       clientBackoff,
+		CircuitConfig: &circuitConfig,
+	}
+}
+
+func NewClient(options ...ClientOptions) *Client {
+	clientOptions := defaultClientOptions
+	if len(options) > 0 {
+		clientOptions = options[0]
+	}
+	return NewClientCustom(defaultTokenManager, clientOptions)
+}
+
+func NewClientCustom(tokenManager TokenManager, options ClientOptions) *Client {
 	return &Client{
-		tokenManager: tokenManager,
-		Timeout:      timeOut,
-		MaxRetries:   maxRetries,
-		Backoff:      backOff,
-		ShowDebug:    debug,
+		TokenManager: tokenManager,
+		Options:      options,
 	}
 }
 
@@ -55,6 +93,10 @@ func (c *Client) Delete(urlStr string) (*goreq.Response, error) {
 
 func (c *Client) retry(method string, urlStr string, body io.Reader) (resp *goreq.Response, err error) {
 
+	if c.TokenManager == nil {
+		log.Fatal("Configure tokenManager or SetDefaultTokenManager")
+	}
+
 	var originalBody []byte
 	if body != nil {
 		if originalBody, err = ioutil.ReadAll(body); err != nil {
@@ -62,7 +104,7 @@ func (c *Client) retry(method string, urlStr string, body io.Reader) (resp *gore
 		}
 	}
 
-	for i := 0; i < c.MaxRetries; i++ {
+	for i := 0; i < c.Options.MaxRetries; i++ {
 		if len(originalBody) > 0 {
 			body = bytes.NewBuffer(originalBody)
 		}
@@ -72,8 +114,8 @@ func (c *Client) retry(method string, urlStr string, body io.Reader) (resp *gore
 			return resp, nil
 		}
 
-		if i < c.MaxRetries-1 {
-			time.Sleep(c.Backoff(i))
+		if i < c.Options.MaxRetries-1 {
+			time.Sleep(c.Options.Backoff(i))
 		}
 	}
 
@@ -81,7 +123,7 @@ func (c *Client) retry(method string, urlStr string, body io.Reader) (resp *gore
 }
 
 func (c *Client) do(method string, urlStr string, body io.Reader) (*goreq.Response, error) {
-	token, err := c.tokenManager.GetToken()
+	token, err := c.TokenManager.GetToken()
 	if err != nil {
 		return nil, err
 	}
@@ -91,8 +133,8 @@ func (c *Client) do(method string, urlStr string, body io.Reader) (*goreq.Respon
 		ContentType: "application/json",
 		Uri:         urlStr,
 		Body:        body,
-		Timeout:     c.Timeout,
-		ShowDebug:   c.ShowDebug,
+		Timeout:     c.Options.Timeout,
+		ShowDebug:   c.Options.ShowDebug,
 	}.WithHeader("Authorization", token.Authorization).Do()
 
 	if err != nil {
