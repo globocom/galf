@@ -18,40 +18,72 @@ const (
 	DefaultTokenClientTimeout = 1 * time.Second
 )
 
-type TokenManager interface {
-	GetToken() (*Token, error)
-}
-
-type OAuthTokenManager struct {
-	TokenEndPoint string
-	ClientId      string
-	ClientSecret  string
-	Authorization string
-	Debug         bool
-	Timeout       time.Duration
-	token         *Token
-	MaxRetries    int
-	Backoff       BackoffStrategy
-}
-
-func NewTokenManager(tokenEndPoint, clientId, clientSecret string, backOff BackoffStrategy,
-	maxRetries int, debug bool, timeout ...time.Duration) *OAuthTokenManager {
-	timeOut := DefaultTokenClientTimeout
-	if len(timeout) > 0 {
-		timeOut = timeout[0]
+type (
+	TokenManager interface {
+		GetToken() (*Token, error)
 	}
 
-	authorizationString := []byte(clientId + ":" + clientSecret)
+	TokenOptions struct {
+		Timeout       time.Duration
+		Backoff       BackoffStrategy
+		MaxRetries    int
+		ShowDebug     bool
+		CircuitConfig *CircuitConfig
+	}
 
+	OAuthTokenManager struct {
+		TokenEndPoint string
+		ClientId      string
+		ClientSecret  string
+		Authorization string
+		Options       TokenOptions
+		token         *Token
+	}
+)
+
+var (
+	defaultTokenOptions = TokenOptions{
+		Timeout:    DefaultClientTimeout,
+		MaxRetries: DefaultClientMaxRetries,
+		Backoff:    ConstantBackOff,
+		ShowDebug:  false,
+	}
+
+	defaultTokenManager TokenManager
+)
+
+func SetDefaultTokenManager(tokenManager TokenManager) {
+	defaultTokenManager = tokenManager
+}
+
+func NewTokenOptions(timeout time.Duration, debug bool, maxRetries int, circuitConfig CircuitConfig, backoff ...BackoffStrategy) TokenOptions {
+	tokenBackoff := ConstantBackOff
+	if len(backoff) > 0 {
+		tokenBackoff = backoff[0]
+	}
+
+	return TokenOptions{
+		Timeout:       timeout,
+		ShowDebug:     debug,
+		MaxRetries:    maxRetries,
+		Backoff:       tokenBackoff,
+		CircuitConfig: &circuitConfig,
+	}
+}
+
+func NewTokenManager(tokenEndPoint, clientId, clientSecret string, options ...TokenOptions) *OAuthTokenManager {
+	tokenOptions := defaultTokenOptions
+	if len(options) > 0 {
+		tokenOptions = options[0]
+	}
+
+	authorization := "Basic " + base64.StdEncoding.EncodeToString([]byte(clientId+":"+clientSecret))
 	tm := &OAuthTokenManager{
 		TokenEndPoint: tokenEndPoint,
 		ClientId:      clientId,
 		ClientSecret:  clientSecret,
-		Authorization: "Basic " + base64.StdEncoding.EncodeToString(authorizationString),
-		Debug:         debug,
-		Timeout:       timeOut,
-		MaxRetries:    maxRetries,
-		Backoff:       backOff,
+		Authorization: authorization,
+		Options:       tokenOptions,
 	}
 
 	return tm
@@ -63,12 +95,12 @@ func (tm *OAuthTokenManager) GetToken() (*Token, error) {
 		var err error
 		var resp *goreq.Response
 
-		for i := 0; i < tm.MaxRetries; i++ {
+		for i := 0; i < tm.Options.MaxRetries; i++ {
 			resp, err = requestToken(tm)
 
 			if err != nil {
-				if i < tm.MaxRetries-1 {
-					time.Sleep(50 * time.Millisecond)
+				if i < tm.Options.MaxRetries-1 {
+					time.Sleep(tm.Options.Backoff(i))
 					continue
 				}
 				return nil, err
@@ -95,8 +127,8 @@ func requestToken(tm *OAuthTokenManager) (*goreq.Response, error) {
 			ContentType: "application/x-www-form-urlencoded",
 			Uri:         tm.TokenEndPoint,
 			Body:        grantType,
-			ShowDebug:   tm.Debug,
-			Timeout:     tm.Timeout,
+			ShowDebug:   tm.Options.ShowDebug,
+			Timeout:     tm.Options.Timeout,
 		}.WithHeader("Authorization", tm.Authorization).Do()
 
 		if err != nil {
