@@ -1,4 +1,4 @@
-package alf
+package galf
 
 import (
 	"strings"
