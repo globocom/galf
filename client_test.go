@@ -42,22 +42,23 @@ func (s *ClientSuite) TestAlfClient(c *C) {
 	settings.Backstage.Token.ClientId = "foo"
 	settings.Backstage.Token.ClientSecret = "bar"
 
+	tokenOptions := NewTokenOptions(
+		settings.Backstage.Token.Timeout,
+		settings.Backstage.Token.Debug,
+		DefaultTokenMaxRetries,
+		CircuitConfig{Name: "circuit_backstage_gateway_token"},
+	)
+
 	tm := NewTokenManager(
 		settings.Backstage.Token.Url,
 		settings.Backstage.Token.ClientId,
 		settings.Backstage.Token.ClientSecret,
-		ConstantBackOff,
-		DefaultTokenMaxRetries,
-		settings.Backstage.Token.Debug,
-		settings.Backstage.Token.Timeout,
+		tokenOptions,
 	)
 
-	client := NewClient(
-		tm,
-		ConstantBackOff,
-		DefaultClientMaxRetries,
-		settings.Backstage.Token.Debug,
-	)
+	SetDefaultTokenManager(tm)
+
+	client := NewClient()
 
 	// Testa métodos do Client
 	urlStr := fmt.Sprintf("%s/feed/1", ts.URL)
