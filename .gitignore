@@ -1,0 +1,6 @@
+.DS_Store
+.idea/
+.keep
+Godeps/_workspace
+.GOPATH
+gin-bin
