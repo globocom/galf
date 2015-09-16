@@ -6,7 +6,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/afex/hystrix-go/hystrix"
-	"gitlab.globoi.com/bastian/falkor/errors"
 
 	"github.com/facebookgo/stackerr"
 	"github.com/franela/goreq"
@@ -179,7 +178,7 @@ func (tm *OAuthTokenManager) request() (*goreq.Response, error) {
 		}).Error("Erro ao pegar um token do Backstage API")
 
 		body, _ := resp.Body.ToString()
-		return nil, errors.NewHttpError(resp.StatusCode, body)
+		return nil, NewHttpError(resp.StatusCode, body)
 	}
 	return resp, nil
 }
