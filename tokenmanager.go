@@ -5,9 +5,9 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/afex/hystrix-go/hystrix"
 	"gitlab.globoi.com/bastian/falkor/errors"
 
-	"github.com/afex/hystrix-go/hystrix"
 	"github.com/facebookgo/stackerr"
 	"github.com/franela/goreq"
 )
@@ -15,7 +15,7 @@ import (
 const (
 	grantType                 = "grant_type=client_credentials"
 	DefaultTokenMaxRetries    = 2
-	DefaultTokenClientTimeout = 1 * time.Second
+	DefaultTokenClientTimeout = 10 * time.Second
 )
 
 type (
@@ -96,7 +96,7 @@ func (tm *OAuthTokenManager) GetToken() (*Token, error) {
 		var resp *goreq.Response
 
 		for i := 0; i < tm.Options.MaxRetries; i++ {
-			resp, err = requestToken(tm)
+			resp, err = tm.do()
 
 			if err != nil {
 				if i < tm.Options.MaxRetries-1 {
@@ -118,35 +118,30 @@ func (tm *OAuthTokenManager) GetToken() (*Token, error) {
 	return tm.token, nil
 }
 
-func requestToken(tm *OAuthTokenManager) (*goreq.Response, error) {
-	output := make(chan *goreq.Response, 1)
-	errors := hystrix.Go("circuit_backstage_api_token", func() error {
-
-		resp, err := goreq.Request{
-			Method:      "POST",
-			ContentType: "application/x-www-form-urlencoded",
-			Uri:         tm.TokenEndPoint,
-			Body:        grantType,
-			ShowDebug:   tm.Options.ShowDebug,
-			Timeout:     tm.Options.Timeout,
-		}.WithHeader("Authorization", tm.Authorization).Do()
-
-		if err != nil {
-			return stackerr.Wrap(err)
-		}
-
-		if resp.StatusCode >= 300 {
+func (tm *OAuthTokenManager) do() (resp *goreq.Response, err error) {
+	if tm.Options.CircuitConfig != nil && tm.Options.CircuitConfig.Name != "" {
+		if !existCircuitConfig(tm.Options.CircuitConfig.Name) {
 			log.WithFields(log.Fields{
-				"uri":           tm.TokenEndPoint,
-				"statusCode":    resp.StatusCode,
-				"authorization": tm.Authorization,
-				"Body":          grantType,
-			}).Error("Erro ao pegar um token do Backstage API")
-
-			body, _ := resp.Body.ToString()
-			return errors.NewHttpError(resp.StatusCode, body)
+				"CircuitName": tm.Options.CircuitConfig.Name,
+			}).Fatal("Não foi configurado o galf hytrix com essse circuit name")
 		}
+		resp, err = tm.requestCircuit()
+	} else {
+		resp, err = tm.request()
+	}
 
+	return resp, err
+}
+
+func (tm *OAuthTokenManager) requestCircuit() (*goreq.Response, error) {
+
+	output := make(chan *goreq.Response, 1)
+	errors := hystrix.Go(tm.Options.CircuitConfig.Name, func() error {
+
+		resp, err := tm.request()
+		if err != nil {
+			return err
+		}
 		output <- resp
 
 		return nil
@@ -158,4 +153,33 @@ func requestToken(tm *OAuthTokenManager) (*goreq.Response, error) {
 	case err := <-errors:
 		return nil, err
 	}
+}
+
+func (tm *OAuthTokenManager) request() (*goreq.Response, error) {
+
+	resp, err := goreq.Request{
+		Method:      "POST",
+		ContentType: "application/x-www-form-urlencoded",
+		Uri:         tm.TokenEndPoint,
+		Body:        grantType,
+		ShowDebug:   tm.Options.ShowDebug,
+		Timeout:     tm.Options.Timeout,
+	}.WithHeader("Authorization", tm.Authorization).Do()
+
+	if err != nil {
+		return nil, stackerr.Wrap(err)
+	}
+
+	if resp.StatusCode >= 300 {
+		log.WithFields(log.Fields{
+			"uri":           tm.TokenEndPoint,
+			"statusCode":    resp.StatusCode,
+			"authorization": tm.Authorization,
+			"Body":          grantType,
+		}).Error("Erro ao pegar um token do Backstage API")
+
+		body, _ := resp.Body.ToString()
+		return nil, errors.NewHttpError(resp.StatusCode, body)
+	}
+	return resp, nil
 }
