@@ -12,22 +12,12 @@ import (
 )
 
 const (
-	grantType                 = "grant_type=client_credentials"
-	DefaultTokenMaxRetries    = 2
-	DefaultTokenClientTimeout = 10 * time.Second
+	grantType = "grant_type=client_credentials"
 )
 
 type (
 	TokenManager interface {
 		GetToken() (*Token, error)
-	}
-
-	TokenOptions struct {
-		Timeout       time.Duration
-		Backoff       BackoffStrategy
-		MaxRetries    int
-		ShowDebug     bool
-		CircuitConfig *CircuitConfig
 	}
 
 	OAuthTokenManager struct {
@@ -41,33 +31,11 @@ type (
 )
 
 var (
-	defaultTokenOptions = TokenOptions{
-		Timeout:    DefaultClientTimeout,
-		MaxRetries: DefaultClientMaxRetries,
-		Backoff:    ConstantBackOff,
-		ShowDebug:  false,
-	}
-
 	defaultTokenManager TokenManager
 )
 
 func SetDefaultTokenManager(tokenManager TokenManager) {
 	defaultTokenManager = tokenManager
-}
-
-func NewTokenOptions(timeout time.Duration, debug bool, maxRetries int, circuitConfig CircuitConfig, backoff ...BackoffStrategy) TokenOptions {
-	tokenBackoff := ConstantBackOff
-	if len(backoff) > 0 {
-		tokenBackoff = backoff[0]
-	}
-
-	return TokenOptions{
-		Timeout:       timeout,
-		ShowDebug:     debug,
-		MaxRetries:    maxRetries,
-		Backoff:       tokenBackoff,
-		CircuitConfig: &circuitConfig,
-	}
 }
 
 func NewTokenManager(tokenEndPoint, clientId, clientSecret string, options ...TokenOptions) *OAuthTokenManager {
@@ -118,12 +86,7 @@ func (tm *OAuthTokenManager) GetToken() (*Token, error) {
 }
 
 func (tm *OAuthTokenManager) do() (resp *goreq.Response, err error) {
-	if tm.Options.CircuitConfig != nil && tm.Options.CircuitConfig.Name != "" {
-		if !existCircuitConfig(tm.Options.CircuitConfig.Name) {
-			log.WithFields(log.Fields{
-				"CircuitName": tm.Options.CircuitConfig.Name,
-			}).Fatal("Não foi configurado o galf hytrix com essse circuit name")
-		}
+	if tm.Options.HystrixConfig != nil && tm.Options.HystrixConfig.useHystrix() {
 		resp, err = tm.requestCircuit()
 	} else {
 		resp, err = tm.request()
@@ -135,7 +98,7 @@ func (tm *OAuthTokenManager) do() (resp *goreq.Response, err error) {
 func (tm *OAuthTokenManager) requestCircuit() (*goreq.Response, error) {
 
 	output := make(chan *goreq.Response, 1)
-	errors := hystrix.Go(tm.Options.CircuitConfig.Name, func() error {
+	errors := hystrix.Go(tm.Options.HystrixConfig.nameHystrix, func() error {
 
 		resp, err := tm.request()
 		if err != nil {

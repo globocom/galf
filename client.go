@@ -7,58 +7,18 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/afex/hystrix-go/hystrix"
 	"github.com/facebookgo/stackerr"
 	"github.com/franela/goreq"
 )
 
-const (
-	DefaultClientTimeout    = 10 * time.Second
-	DefaultClientMaxRetries = 2
-)
-
 type (
-	CircuitConfig struct {
-		Name string
-	}
-
-	ClientOptions struct {
-		Timeout       time.Duration
-		Backoff       BackoffStrategy
-		MaxRetries    int
-		ShowDebug     bool
-		CircuitConfig *CircuitConfig
-	}
-
 	Client struct {
 		TokenManager TokenManager
 		Options      ClientOptions
+		useHystrix   bool
 	}
 )
-
-var (
-	defaultClientOptions = ClientOptions{
-		Timeout:       DefaultClientTimeout,
-		MaxRetries:    DefaultClientMaxRetries,
-		Backoff:       ConstantBackOff,
-		ShowDebug:     false,
-		CircuitConfig: nil,
-	}
-)
-
-func NewClientOptions(timeout time.Duration, debug bool, maxRetries int, circuitConfig CircuitConfig, backoff ...BackoffStrategy) ClientOptions {
-	clientBackoff := ConstantBackOff
-	if len(backoff) > 0 {
-		clientBackoff = backoff[0]
-	}
-
-	return ClientOptions{
-		Timeout:       timeout,
-		ShowDebug:     debug,
-		MaxRetries:    maxRetries,
-		Backoff:       clientBackoff,
-		CircuitConfig: &circuitConfig,
-	}
-}
 
 func NewClient(options ...ClientOptions) *Client {
 	clientOptions := defaultClientOptions
@@ -122,7 +82,39 @@ func (c *Client) retry(method string, urlStr string, body io.Reader) (resp *gore
 	return resp, err
 }
 
-func (c *Client) do(method string, urlStr string, body io.Reader) (*goreq.Response, error) {
+func (c *Client) do(method string, urlStr string, body io.Reader) (resp *goreq.Response, err error) {
+	if c.Options.HystrixConfig != nil && c.Options.HystrixConfig.useHystrix() {
+		resp, err = c.requestHystrix(method, urlStr, body)
+	} else {
+		resp, err = c.request(method, urlStr, body)
+	}
+
+	return resp, err
+}
+
+func (c *Client) requestHystrix(method string, urlStr string, body io.Reader) (*goreq.Response, error) {
+
+	output := make(chan *goreq.Response, 1)
+	errors := hystrix.Go(c.Options.HystrixConfig.nameHystrix, func() error {
+
+		resp, err := c.request(method, urlStr, body)
+		if err != nil {
+			return err
+		}
+		output <- resp
+
+		return nil
+	}, nil)
+
+	select {
+	case out := <-output:
+		return out, nil
+	case err := <-errors:
+		return nil, err
+	}
+}
+
+func (c *Client) request(method string, urlStr string, body io.Reader) (*goreq.Response, error) {
 	token, err := c.TokenManager.GetToken()
 	if err != nil {
 		return nil, err
