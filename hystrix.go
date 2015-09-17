@@ -16,21 +16,21 @@ func init() {
 }
 
 // ConfigureCommand applies settings for a circuit
-func HytrixConfigureCommand(name string, config hystrix.CommandConfig) {
+func HystrixConfigureCommand(name string, config hystrix.CommandConfig) {
 	circuitMutex.Lock()
 	defer circuitMutex.Unlock()
 	hystrix.ConfigureCommand(name, config)
-	circuitConfig[getHytrixName(name)] = true
+	circuitConfig[getHystrixName(name)] = true
 }
 
 func existCircuitConfig(name string) bool {
 	circuitMutex.RLock()
-	_, exists := circuitConfig[getHytrixName(name)]
+	_, exists := circuitConfig[getHystrixName(name)]
 	circuitMutex.RUnlock()
 
 	return exists
 }
 
-func getHytrixName(name string) string {
+func getHystrixName(name string) string {
 	return fmt.Sprintf("%s_galf", name)
 }
