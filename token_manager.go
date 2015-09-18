@@ -86,19 +86,20 @@ func (tm *OAuthTokenManager) GetToken() (*Token, error) {
 }
 
 func (tm *OAuthTokenManager) do() (resp *goreq.Response, err error) {
-	if tm.Options.HystrixConfig != nil && tm.Options.HystrixConfig.useHystrix() {
-		resp, err = tm.requestCircuit()
-	} else {
-		resp, err = tm.request()
+	if tm.Options.HystrixConfig == nil {
+		return tm.request()
 	}
 
-	return resp, err
+	if err = tm.Options.HystrixConfig.valid(); err != nil {
+		return nil, err
+	}
+	return tm.requestHystrix()
 }
 
-func (tm *OAuthTokenManager) requestCircuit() (*goreq.Response, error) {
+func (tm *OAuthTokenManager) requestHystrix() (*goreq.Response, error) {
 
 	output := make(chan *goreq.Response, 1)
-	errors := hystrix.Go(tm.Options.HystrixConfig.nameHystrix, func() error {
+	errors := hystrix.Go(tm.Options.HystrixConfig.configName, func() error {
 
 		resp, err := tm.request()
 		if err != nil {

@@ -2,11 +2,11 @@ package galf
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"io/ioutil"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/afex/hystrix-go/hystrix"
 	"github.com/facebookgo/stackerr"
 	"github.com/franela/goreq"
@@ -54,7 +54,7 @@ func (c *Client) Delete(urlStr string) (*goreq.Response, error) {
 func (c *Client) retry(method string, urlStr string, body io.Reader) (resp *goreq.Response, err error) {
 
 	if c.TokenManager == nil {
-		log.Fatal("Configure tokenManager or SetDefaultTokenManager")
+		return nil, errors.New("Configure tokenManager or SetDefaultTokenManager")
 	}
 
 	var originalBody []byte
@@ -83,19 +83,20 @@ func (c *Client) retry(method string, urlStr string, body io.Reader) (resp *gore
 }
 
 func (c *Client) do(method string, urlStr string, body io.Reader) (resp *goreq.Response, err error) {
-	if c.Options.HystrixConfig != nil && c.Options.HystrixConfig.useHystrix() {
-		resp, err = c.requestHystrix(method, urlStr, body)
-	} else {
-		resp, err = c.request(method, urlStr, body)
+	if c.Options.HystrixConfig == nil {
+		return c.request(method, urlStr, body)
 	}
 
-	return resp, err
+	if err = c.Options.HystrixConfig.valid(); err != nil {
+		return nil, err
+	}
+	return c.requestHystrix(method, urlStr, body)
 }
 
 func (c *Client) requestHystrix(method string, urlStr string, body io.Reader) (*goreq.Response, error) {
 
 	output := make(chan *goreq.Response, 1)
-	errors := hystrix.Go(c.Options.HystrixConfig.nameHystrix, func() error {
+	errors := hystrix.Go(c.Options.HystrixConfig.configName, func() error {
 
 		resp, err := c.request(method, urlStr, body)
 		if err != nil {

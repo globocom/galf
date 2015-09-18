@@ -1,10 +1,10 @@
 package galf
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/afex/hystrix-go/hystrix"
 )
 
@@ -17,22 +17,24 @@ func init() {
 }
 
 type HystrixConfig struct {
-	Name        string
-	nameHystrix string
+	Name       string
+	configName string
 }
 
-func (hc *HystrixConfig) useHystrix() bool {
-	if hc.nameHystrix != "" {
-		return true
+func (hc *HystrixConfig) valid() error {
+	if hc.configName != "" {
+		return nil
 	}
 
 	if !existHystrixConfig(hc.Name) {
-		log.WithFields(log.Fields{
-			"HystrixConfigName": hc.Name,
-		}).Fatal("Não foi configurado o galf hytrix com essse circuit name")
+		// log.WithFields(log.Fields{
+		// 	"HystrixConfigName": hc.Name,
+		// }).Fatal("Não foi configurado o galf hytrix com essse circuit name")
+		return errors.New("dsdd")
 	}
-	hc.nameHystrix = getHystrixConfigName(hc.Name)
-	return true
+
+	hc.configName = getHystrixConfigName(hc.Name)
+	return nil
 }
 
 // ConfigureCommand applies settings for a circuit
