@@ -24,6 +24,7 @@ help:
 ## Install dependencies of the project
 setup:
 	@go get golang.org/x/tools/cmd/cover
+	@go get gopkg.in/check.v1
 	@go get -v ./...
 
 ## Runs the project unit tests
