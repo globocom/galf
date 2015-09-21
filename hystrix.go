@@ -27,10 +27,8 @@ func (hc *HystrixConfig) valid() error {
 	}
 
 	if !existHystrixConfig(hc.Name) {
-		// log.WithFields(log.Fields{
-		// 	"HystrixConfigName": hc.Name,
-		// }).Fatal("Não foi configurado o galf hytrix com essse circuit name")
-		return errors.New("dsdd")
+		msg := fmt.Sprintf("Hystrix config name not found: %s", hc.Name)
+		return errors.New(msg)
 	}
 
 	hc.configName = getHystrixConfigName(hc.Name)

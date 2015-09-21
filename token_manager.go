@@ -2,9 +2,9 @@ package galf
 
 import (
 	"encoding/base64"
+	"fmt"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/afex/hystrix-go/hystrix"
 
 	"github.com/facebookgo/stackerr"
@@ -134,14 +134,11 @@ func (tm *OAuthTokenManager) request() (*goreq.Response, error) {
 	}
 
 	if resp.StatusCode >= 300 {
-		log.WithFields(log.Fields{
-			"uri":           tm.TokenEndPoint,
-			"statusCode":    resp.StatusCode,
-			"authorization": tm.Authorization,
-			"Body":          grantType,
-		}).Error("Erro ao pegar um token do Backstage API")
-
-		body, _ := resp.Body.ToString()
+		var body string
+		if body, err = resp.Body.ToString(); err != nil {
+			resp.Body.Close()
+			body = fmt.Sprintf("Failed to request token %s", tm.TokenEndPoint)
+		}
 		return nil, NewHttpError(resp.StatusCode, body)
 	}
 	return resp, nil
