@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"time"
 
 	"github.com/afex/hystrix-go/hystrix"
@@ -69,8 +70,11 @@ func (c *Client) retry(method string, urlStr string, body io.Reader) (resp *gore
 			body = bytes.NewBuffer(originalBody)
 		}
 
-		resp, err = c.do(method, urlStr, body)
-		if err == nil && resp.StatusCode < 300 {
+		if resp, err = c.do(method, urlStr, body); err != nil {
+			return nil, err
+		}
+
+		if resp.StatusCode != http.StatusUnauthorized {
 			return resp, nil
 		}
 
