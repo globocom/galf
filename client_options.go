@@ -3,7 +3,7 @@ package galf
 import "time"
 
 const (
-	DefaultClientTimeout    = 10 * time.Second
+	DefaultClientTimeout    = 20 * time.Second
 	DefaultClientMaxRetries = 2
 )
 

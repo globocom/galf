@@ -2,9 +2,10 @@ package galf
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
-	"io/ioutil"
+	"net"
 	"net/http"
 	"time"
 
@@ -17,9 +18,23 @@ type (
 	Client struct {
 		TokenManager TokenManager
 		Options      ClientOptions
-		useHystrix   bool
 	}
 )
+
+var (
+	defaultDialer                      = &net.Dialer{Timeout: 1000 * time.Second}
+	defaultTransport http.RoundTripper = &http.Transport{
+		Dial:                defaultDialer.Dial,
+		Proxy:               http.ProxyFromEnvironment,
+		MaxIdleConnsPerHost: 250,
+	}
+	defaultClient = &http.Client{Transport: defaultTransport}
+)
+
+func init() {
+	goreq.DefaultTransport = defaultTransport
+	goreq.DefaultClient = defaultClient
+}
 
 func NewClient(options ...ClientOptions) *Client {
 	clientOptions := defaultClientOptions
@@ -40,11 +55,11 @@ func (c *Client) Get(urlStr string) (*goreq.Response, error) {
 	return c.retry("GET", urlStr, nil)
 }
 
-func (c *Client) Post(urlStr string, body io.Reader) (*goreq.Response, error) {
+func (c *Client) Post(urlStr string, body interface{}) (*goreq.Response, error) {
 	return c.retry("POST", urlStr, body)
 }
 
-func (c *Client) Put(urlStr string, body io.Reader) (*goreq.Response, error) {
+func (c *Client) Put(urlStr string, body interface{}) (*goreq.Response, error) {
 	return c.retry("PUT", urlStr, body)
 }
 
@@ -52,25 +67,24 @@ func (c *Client) Delete(urlStr string) (*goreq.Response, error) {
 	return c.retry("DELETE", urlStr, nil)
 }
 
-func (c *Client) retry(method string, urlStr string, body io.Reader) (resp *goreq.Response, err error) {
+func (c *Client) retry(method string, urlStr string, body interface{}) (resp *goreq.Response, err error) {
 
 	if c.TokenManager == nil {
 		return nil, errors.New("Configure tokenManager or SetDefaultTokenManager")
 	}
 
-	var originalBody []byte
-	if body != nil {
-		if originalBody, err = ioutil.ReadAll(body); err != nil {
-			return nil, stackerr.Wrap(err)
-		}
+	originalBody, err := copyBody(body)
+	if err != nil {
+		return nil, err
 	}
 
+	var bodyReader io.Reader
 	for i := 0; i < c.Options.MaxRetries; i++ {
 		if len(originalBody) > 0 {
-			body = bytes.NewBuffer(originalBody)
+			bodyReader = bytes.NewBuffer(originalBody)
 		}
 
-		if resp, err = c.do(method, urlStr, body); err != nil {
+		if resp, err = c.do(method, urlStr, bodyReader); err != nil {
 			return nil, err
 		}
 
@@ -86,7 +100,7 @@ func (c *Client) retry(method string, urlStr string, body io.Reader) (resp *gore
 	return resp, err
 }
 
-func (c *Client) do(method string, urlStr string, body io.Reader) (resp *goreq.Response, err error) {
+func (c *Client) do(method string, urlStr string, body interface{}) (resp *goreq.Response, err error) {
 	if c.Options.HystrixConfig == nil {
 		return c.request(method, urlStr, body)
 	}
@@ -97,7 +111,7 @@ func (c *Client) do(method string, urlStr string, body io.Reader) (resp *goreq.R
 	return c.requestHystrix(method, urlStr, body)
 }
 
-func (c *Client) requestHystrix(method string, urlStr string, body io.Reader) (*goreq.Response, error) {
+func (c *Client) requestHystrix(method string, urlStr string, body interface{}) (*goreq.Response, error) {
 
 	output := make(chan *goreq.Response, 1)
 	errors := hystrix.Go(c.Options.HystrixConfig.configName, func() error {
@@ -119,7 +133,7 @@ func (c *Client) requestHystrix(method string, urlStr string, body io.Reader) (*
 	}
 }
 
-func (c *Client) request(method string, urlStr string, body io.Reader) (*goreq.Response, error) {
+func (c *Client) request(method string, urlStr string, body interface{}) (*goreq.Response, error) {
 	token, err := c.TokenManager.GetToken()
 	if err != nil {
 		return nil, err
@@ -139,4 +153,51 @@ func (c *Client) request(method string, urlStr string, body io.Reader) (*goreq.R
 	}
 
 	return resp, nil
+}
+
+func (c *Client) httpRequest(method string, urlStr string, body io.Reader) (*http.Response, error) {
+	token, err := c.TokenManager.GetToken()
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(method, urlStr, body)
+	if err != nil {
+		return nil, stackerr.Wrap(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", token.Authorization)
+	resp, err := defaultClient.Do(req)
+	if err != nil {
+		return nil, stackerr.Wrap(err)
+	}
+	return resp, nil
+}
+
+func copyBody(b interface{}) ([]byte, error) {
+	switch b.(type) {
+	case string:
+		return []byte(b.(string)), nil
+
+	case io.Reader:
+		var originalBody bytes.Buffer
+		_, err := io.Copy(&originalBody, b.(io.Reader))
+		if err != nil {
+			return nil, err
+		}
+		return originalBody.Bytes(), nil
+
+	case []byte:
+		return b.([]byte), nil
+
+	case nil:
+		return nil, nil
+
+	default:
+		j, err := json.Marshal(b)
+		if err != nil {
+			return nil, err
+		}
+		return j, nil
+	}
 }
