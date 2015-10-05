@@ -49,8 +49,7 @@ func getHystrixConfigName(name string) string {
 
 func existHystrixConfig(name string) bool {
 	hystrixMutex.RLock()
+	defer hystrixMutex.RUnlock()
 	_, exists := hystrixConfigs[getHystrixConfigName(name)]
-	hystrixMutex.RUnlock()
-
 	return exists
 }

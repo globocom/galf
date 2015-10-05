@@ -33,11 +33,16 @@ func NewClientOptions(timeout time.Duration, debug bool, maxRetries int, hystrix
 		clientBackoff = backoff[0]
 	}
 
+	var hystrixConfig *HystrixConfig
+	if hystrixConfigName != "" {
+		hystrixConfig = &HystrixConfig{Name: hystrixConfigName}
+	}
+
 	return ClientOptions{
 		Timeout:       timeout,
 		ShowDebug:     debug,
 		MaxRetries:    maxRetries,
 		Backoff:       clientBackoff,
-		HystrixConfig: &HystrixConfig{Name: hystrixConfigName},
+		HystrixConfig: hystrixConfig,
 	}
 }
