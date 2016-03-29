@@ -15,11 +15,11 @@ type Token struct {
 	TokenType     string `json:"token_type"`
 	ExpiresIn     int    `json:"expires_in"`
 	Authorization string
-	expires_on    time.Time
+	expiresOn     time.Time
 }
 
 func (t *Token) isValid() bool {
-	return time.Now().Before(t.expires_on)
+	return time.Now().Before(t.expiresOn)
 }
 
 func newToken(body io.Reader) (*Token, error) {
@@ -30,7 +30,7 @@ func newToken(body io.Reader) (*Token, error) {
 	}
 
 	token.TokenType = strings.Title(token.TokenType)
-	token.expires_on = time.Now().Add(time.Duration(token.ExpiresIn) * time.Second)
+	token.expiresOn = time.Now().Add(time.Duration(token.ExpiresIn) * time.Second)
 	token.Authorization = fmt.Sprintf("%s %s", token.TokenType, token.AccessToken)
 	return &token, nil
 }
