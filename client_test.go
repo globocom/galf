@@ -6,41 +6,21 @@ import (
 	"net/http/httptest"
 	"strings"
 
-	. "gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 )
 
-type ClientSuite struct{}
+type clientSuite struct{}
 
-var _ = Suite(&ClientSuite{})
+var _ = check.Suite(&clientSuite{})
 
-func (s *ClientSuite) TestAlfClient(c *C) {
-	// testServer
-	ts := *httptest.NewServer(
-		http.HandlerFunc(
-			func(w http.ResponseWriter, r *http.Request) {
-				switch r.Method {
-				case "GET":
-					w.WriteHeader(200)
-				case "POST":
-					w.WriteHeader(201)
-				case "PUT":
-					w.WriteHeader(204)
-				case "DELETE":
-					w.WriteHeader(204)
-				}
-				fmt.Fprintf(w, "{}")
-			}))
-	defer ts.Close()
-
-	tm := NewTokenManager(
-		ts.URL+"/token",
-		"ClientId",
-		"ClientSecret",
-	)
-
-	SetDefaultTokenManager(tm)
+func (s *clientSuite) TestAlfClient(c *check.C) {
+	tst := newTestServerToken()
+	defer tst.Close()
 
 	client := NewClient()
+
+	ts := newTestServer("tokenClient")
+	defer ts.Close()
 
 	// Testa métodos do Client
 	urlStr := fmt.Sprintf("%s/feed/1", ts.URL)
@@ -49,22 +29,42 @@ func (s *ClientSuite) TestAlfClient(c *C) {
 
 	// GET
 	resp, err := client.Get(urlStr)
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, http.StatusOK)
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
 
 	// POST
 	resp, err = client.Post(urlStr, body)
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, http.StatusCreated)
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusCreated)
 
 	// PUT
 	resp, err = client.Put(urlStr, body)
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, http.StatusNoContent)
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusNoContent)
 
 	// DELETE
 	resp, err = client.Delete(urlStr)
-	c.Assert(err, IsNil)
-	c.Assert(resp.StatusCode, Equals, http.StatusNoContent)
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusNoContent)
 
+}
+
+func newTestServer(name string) *httptest.Server {
+	ts := httptest.NewServer(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			println(name + " - " + r.RequestURI)
+			switch r.Method {
+			case "GET":
+				w.WriteHeader(200)
+			case "POST":
+				w.WriteHeader(201)
+			case "PUT":
+				w.WriteHeader(204)
+			case "DELETE":
+				w.WriteHeader(204)
+			}
+			fmt.Fprintf(w, "{}")
+		}))
+
+	return ts
 }
