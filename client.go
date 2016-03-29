@@ -155,25 +155,6 @@ func (c *Client) request(method string, urlStr string, body interface{}) (*goreq
 	return resp, nil
 }
 
-func (c *Client) httpRequest(method string, urlStr string, body io.Reader) (*http.Response, error) {
-	token, err := c.TokenManager.GetToken()
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(method, urlStr, body)
-	if err != nil {
-		return nil, stackerr.Wrap(err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", token.Authorization)
-	resp, err := defaultClient.Do(req)
-	if err != nil {
-		return nil, stackerr.Wrap(err)
-	}
-	return resp, nil
-}
-
 func copyBody(b interface{}) ([]byte, error) {
 	switch b.(type) {
 	case string:
