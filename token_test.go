@@ -11,30 +11,34 @@ type tokenSuite struct{}
 
 var _ = check.Suite(&tokenSuite{})
 
-func (s *tokenSuite) TestCreatesANewToken(c *check.C) {
-	foo := strings.NewReader(
-		`{"access_token": "qweasdzxc", "token_type": "neil peart", "expires_in": 15}`,
+func (s *tokenSuite) TestCreateNewToken(c *check.C) {
+	bodyToken := strings.NewReader(
+		`{"access_token": "nonenone", "token_type": "bearer", "expires_in": 15}`,
 	)
-	token, err := newToken(foo)
+	token, err := newToken(bodyToken)
 
 	c.Assert(err, check.IsNil)
-	c.Assert(token.TokenType, check.Equals, "Neil Peart")
-	c.Assert(time.Now().Add(time.Duration(15)*time.Second).After(token.expires_on), check.Equals, true)
-	c.Assert(token.Authorization, check.Equals, "Neil Peart qweasdzxc")
+	c.Assert(token.TokenType, check.Equals, "Bearer")
+	c.Assert(token.Authorization, check.Equals, "Bearer nonenone")
 }
 
-func (s *tokenSuite) TestTokenIsValidIfActualTimeIsLowerThanExpirationTime(c *check.C) {
-	token := Token{
-		expires_on: time.Date(2999, time.December, 30, 12, 0, 0, 0, time.UTC),
-	}
+func (s *tokenSuite) TestTokenIsValid(c *check.C) {
+	bodyToken := strings.NewReader(
+		`{"access_token": "nonenone", "token_type": "bearer", "expires_in": 1}`,
+	)
+	token, err := newToken(bodyToken)
 
+	c.Assert(err, check.IsNil)
 	c.Assert(token.isValid(), check.Equals, true)
 }
 
-func (s *tokenSuite) TestTokenIsInvalidIfActualTimeIsBiggerThanExpirationTime(c *check.C) {
-	token := Token{
-		expires_on: time.Date(2000, time.December, 30, 12, 0, 0, 0, time.UTC),
-	}
+func (s *tokenSuite) TestTokenNotIsValid(c *check.C) {
+	bodyToken := strings.NewReader(
+		`{"access_token": "nonenone", "token_type": "bearer", "expires_in": 1}`,
+	)
+	token, err := newToken(bodyToken)
+	time.Sleep(1 * time.Second)
 
+	c.Assert(err, check.IsNil)
 	c.Assert(token.isValid(), check.Equals, false)
 }

@@ -1,5 +1,9 @@
 package galf
 
+import "errors"
+
+var TokenExpiredError = errors.New("Token expired")
+
 type HTTP struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`

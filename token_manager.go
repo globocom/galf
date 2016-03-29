@@ -17,7 +17,7 @@ const (
 
 type (
 	TokenManager interface {
-		GetToken() (*Token, error)
+		GetToken() (Token, error)
 	}
 
 	OAuthTokenManager struct {
@@ -38,7 +38,7 @@ func SetDefaultTokenManager(tokenManager TokenManager) {
 	defaultTokenManager = tokenManager
 }
 
-func NewTokenManager(tokenEndPoint, clientId, clientSecret string, options ...TokenOptions) *OAuthTokenManager {
+func NewTokenManager(tokenEndPoint string, clientId string, clientSecret string, options ...TokenOptions) *OAuthTokenManager {
 	tokenOptions := defaultTokenOptions
 	if len(options) > 0 {
 		tokenOptions = options[0]
@@ -56,44 +56,54 @@ func NewTokenManager(tokenEndPoint, clientId, clientSecret string, options ...To
 	return tm
 }
 
-func (tm *OAuthTokenManager) GetToken() (*Token, error) {
+func (tm *OAuthTokenManager) GetToken() (Token, error) {
 
 	if tm.token == nil || !tm.token.isValid() {
-		var err error
-		var resp *goreq.Response
+		for i := 1; i <= tm.Options.MaxRetries; i++ {
+			token, err := tm.do()
 
-		for i := 0; i < tm.Options.MaxRetries; i++ {
-			resp, err = tm.do()
+			if err == nil && !token.isValid() {
+				err = TokenExpiredError
+			}
 
 			if err != nil {
-				if i < tm.Options.MaxRetries-1 {
+				if i < tm.Options.MaxRetries {
 					time.Sleep(tm.Options.Backoff(i))
 					continue
 				}
-				return nil, err
+				return Token{}, err
 			}
 
-			defer resp.Body.Close()
-			if tm.token, err = newToken(resp.Body); err != nil {
-				return nil, err
-			}
-			return tm.token, nil
+			tm.token = token
 		}
-		return nil, err
+
 	}
 
-	return tm.token, nil
+	return *tm.token, nil
 }
 
-func (tm *OAuthTokenManager) do() (resp *goreq.Response, err error) {
+func (tm *OAuthTokenManager) do() (token *Token, err error) {
+	var resp *goreq.Response
+
 	if tm.Options.HystrixConfig == nil {
-		return tm.request()
+		if resp, err = tm.request(); err != nil {
+			return nil, err
+		}
+	} else {
+		if err = tm.Options.HystrixConfig.valid(); err != nil {
+			return nil, err
+		}
+		if resp, err = tm.requestHystrix(); err != nil {
+			return nil, err
+		}
 	}
 
-	if err = tm.Options.HystrixConfig.valid(); err != nil {
+	defer resp.Body.Close()
+	if token, err = newToken(resp.Body); err != nil {
 		return nil, err
 	}
-	return tm.requestHystrix()
+
+	return token, nil
 }
 
 func (tm *OAuthTokenManager) requestHystrix() (*goreq.Response, error) {
@@ -136,10 +146,12 @@ func (tm *OAuthTokenManager) request() (*goreq.Response, error) {
 	if resp.StatusCode >= 300 {
 		var body string
 		if body, err = resp.Body.ToString(); err != nil {
-			resp.Body.Close()
-			body = fmt.Sprintf("Failed to request token %s", tm.TokenEndPoint)
+			return nil, stackerr.Wrap(err)
 		}
-		return nil, NewHttpError(resp.StatusCode, body)
+		resp.Body.Close()
+
+		erroMsg := fmt.Sprintf("Failed to request token url: %s - statusCode: %d - body: %s", resp.Request.URL, resp.StatusCode, body)
+		return nil, NewHttpError(resp.StatusCode, erroMsg)
 	}
 	return resp, nil
 }
