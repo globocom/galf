@@ -80,6 +80,13 @@ func (cs *clientSuite) TestPostClient(c *check.C) {
 	resp, err = client.Post(url, bodyBytes)
 	assertPost(resp, err)
 
+	// body post == struct
+	type bodySt struct {
+		BodyPost string `json:"bodyPost"`
+	}
+	bodyStruct := bodySt{"test"}
+	resp, err = client.Post(url, bodyStruct)
+	assertPost(resp, err)
 }
 
 func (cs *clientSuite) TestPutClient(c *check.C) {
@@ -89,14 +96,43 @@ func (cs *clientSuite) TestPutClient(c *check.C) {
 	})
 	defer ts.Close()
 
+	assertPut := func(resp *goreq.Response, err error) {
+		c.Assert(err, check.IsNil)
+		c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
+
+		body, _ := resp.Body.ToString()
+		c.Assert(body, check.Equals, `{"method": "PUT"}`)
+	}
+
 	client := NewClient()
 	url := fmt.Sprintf("%s/put/feed/1", ts.URL)
-	resp, err := client.Delete(url)
-	c.Assert(err, check.IsNil)
-	c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
 
-	body, _ := resp.Body.ToString()
-	c.Assert(body, check.Equals, `{"method": "PUT"}`)
+	// body put == nil
+	resp, err := client.Put(url, nil)
+	assertPut(resp, err)
+
+	// body put == io.Reader
+	bodyReader := strings.NewReader(`{"bodyPut": "test"}`)
+	resp, err = client.Put(url, bodyReader)
+	assertPut(resp, err)
+
+	// body put == string
+	bodyString := "{'bodyPut': 'test'}"
+	resp, err = client.Put(url, bodyString)
+	assertPut(resp, err)
+
+	// body put == []byte
+	bodyBytes := []byte("{'bodyPut': 'test'}")
+	resp, err = client.Put(url, bodyBytes)
+	assertPut(resp, err)
+
+	// body put == struct
+	type bodySt struct {
+		BodyPut string `json:"bodyPut"`
+	}
+	bodyStruct := bodySt{"test"}
+	resp, err = client.Put(url, bodyStruct)
+	assertPut(resp, err)
 }
 
 func (cs *clientSuite) TestDeleteClient(c *check.C) {
