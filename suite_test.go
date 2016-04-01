@@ -14,15 +14,26 @@ func TestAlf(t *testing.T) {
 }
 
 func newTestServerCustom(handle func(w http.ResponseWriter, r *http.Request)) *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(handle))
+	handlerWrapper := func(w http.ResponseWriter, r *http.Request) {
+		println("Url: " + r.RequestURI)
+		handle(w, r)
+	}
+
+	return httptest.NewServer(http.HandlerFunc(handlerWrapper))
 }
 
-func newTestServerToken() *httptest.Server {
+func newTestServerToken(expireIn ...int) *httptest.Server {
+	expire := 15
+	if len(expireIn) > 0 {
+		expire = expireIn[0]
+	}
+
 	handleGetToken := func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, `{"access_token": "nonenoenoe", "token_type": "bearer", "expires_in": 15}`)
+		fmt.Fprint(w, fmt.Sprintf(`{"access_token": "nonenoenoe", "token_type": "bearer", "expires_in": %d}`, expire))
 	}
 
 	ts := newTestServerCustom(handleGetToken)
+
 	tm := NewTokenManager(
 		ts.URL+"/token",
 		"ClientId",
