@@ -75,8 +75,8 @@ func (tm *OAuthTokenManager) GetToken() (Token, error) {
 			}
 
 			tm.token = token
+			return *tm.token, nil
 		}
-
 	}
 
 	return *tm.token, nil
@@ -84,7 +84,6 @@ func (tm *OAuthTokenManager) GetToken() (Token, error) {
 
 func (tm *OAuthTokenManager) do() (token *Token, err error) {
 	var resp *goreq.Response
-
 	if tm.Options.HystrixConfig == nil {
 		if resp, err = tm.request(); err != nil {
 			return nil, err
