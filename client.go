@@ -100,12 +100,16 @@ func (c *Client) retry(method string, urlStr string, body interface{}) (resp *go
 	return resp, err
 }
 
-func (c *Client) do(method string, urlStr string, body interface{}) (resp *goreq.Response, err error) {
+func (c *Client) do(method string, urlStr string, body interface{}) (*goreq.Response, error) {
 	if c.Options.HystrixConfig == nil {
-		return c.request(method, urlStr, body)
+		token, err := c.TokenManager.GetToken()
+		if err != nil {
+			return nil, err
+		}
+		return c.request(token.Authorization, method, urlStr, body)
 	}
 
-	if err = c.Options.HystrixConfig.valid(); err != nil {
+	if err := c.Options.HystrixConfig.valid(); err != nil {
 		return nil, err
 	}
 	return c.requestHystrix(method, urlStr, body)
@@ -113,10 +117,15 @@ func (c *Client) do(method string, urlStr string, body interface{}) (resp *goreq
 
 func (c *Client) requestHystrix(method string, urlStr string, body interface{}) (*goreq.Response, error) {
 
+	token, err := c.TokenManager.GetToken()
+	if err != nil {
+		return nil, err
+	}
+
 	output := make(chan *goreq.Response, 1)
 	errors := hystrix.Go(c.Options.HystrixConfig.configName, func() error {
 
-		resp, err := c.request(method, urlStr, body)
+		resp, err := c.request(token.Authorization, method, urlStr, body)
 		if err != nil {
 			return err
 		}
@@ -133,12 +142,7 @@ func (c *Client) requestHystrix(method string, urlStr string, body interface{}) 
 	}
 }
 
-func (c *Client) request(method string, urlStr string, body interface{}) (*goreq.Response, error) {
-	token, err := c.TokenManager.GetToken()
-	if err != nil {
-		return nil, err
-	}
-
+func (c *Client) request(authorization string, method string, urlStr string, body interface{}) (*goreq.Response, error) {
 	resp, err := goreq.Request{
 		Method:      method,
 		ContentType: "application/json",
@@ -146,7 +150,7 @@ func (c *Client) request(method string, urlStr string, body interface{}) (*goreq
 		Body:        body,
 		Timeout:     c.Options.Timeout,
 		ShowDebug:   c.Options.ShowDebug,
-	}.WithHeader("Authorization", token.Authorization).Do()
+	}.WithHeader("Authorization", authorization).Do()
 
 	if err != nil {
 		return nil, stackerr.Wrap(err)
