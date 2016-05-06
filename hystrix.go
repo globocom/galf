@@ -39,12 +39,9 @@ func (hc *HystrixConfig) valid() error {
 func HystrixConfigureCommand(name string, config hystrix.CommandConfig) {
 	hystrixMutex.Lock()
 	defer hystrixMutex.Unlock()
-	hystrix.ConfigureCommand(name, config)
-	hystrixConfigs[getHystrixConfigName(name)] = true
-}
-
-func getHystrixConfigName(name string) string {
-	return fmt.Sprintf("%s_galf", name)
+	configName := getHystrixConfigName(name)
+	hystrix.ConfigureCommand(configName, config)
+	hystrixConfigs[configName] = true
 }
 
 func existHystrixConfig(name string) bool {
@@ -52,4 +49,8 @@ func existHystrixConfig(name string) bool {
 	defer hystrixMutex.RUnlock()
 	_, exists := hystrixConfigs[getHystrixConfigName(name)]
 	return exists
+}
+
+func getHystrixConfigName(name string) string {
+	return fmt.Sprintf("%s_galf", name)
 }
