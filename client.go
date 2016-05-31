@@ -44,6 +44,14 @@ func NewClient(options ...ClientOptions) *Client {
 	return NewClientCustom(defaultTokenManager, clientOptions)
 }
 
+func NewClientNoWithTokenManager(options ...ClientOptions) *Client {
+	clientOptions := defaultClientOptions
+	if len(options) > 0 {
+		clientOptions = options[0]
+	}
+	return NewClientCustom(nil, clientOptions)
+}
+
 func NewClientCustom(tokenManager TokenManager, options ClientOptions) *Client {
 	return &Client{
 		TokenManager: tokenManager,
@@ -102,11 +110,11 @@ func (c *Client) retry(method string, urlStr string, body interface{}) (resp *go
 
 func (c *Client) do(method string, urlStr string, body interface{}) (*goreq.Response, error) {
 	if c.Options.HystrixConfig == nil {
-		token, err := c.TokenManager.GetToken()
+		authorization, err := c.getAuthorization()
 		if err != nil {
 			return nil, err
 		}
-		return c.request(token.Authorization, method, urlStr, body)
+		return c.request(method, urlStr, body, authorization)
 	}
 
 	if err := c.Options.HystrixConfig.valid(); err != nil {
@@ -117,7 +125,7 @@ func (c *Client) do(method string, urlStr string, body interface{}) (*goreq.Resp
 
 func (c *Client) requestHystrix(method string, urlStr string, body interface{}) (*goreq.Response, error) {
 
-	token, err := c.TokenManager.GetToken()
+	authorization, err := c.getAuthorization()
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +133,7 @@ func (c *Client) requestHystrix(method string, urlStr string, body interface{}) 
 	output := make(chan *goreq.Response, 1)
 	errors := hystrix.Go(c.Options.HystrixConfig.configName, func() error {
 
-		resp, err := c.request(token.Authorization, method, urlStr, body)
+		resp, err := c.request(method, urlStr, body, authorization)
 		if err != nil {
 			return err
 		}
@@ -142,21 +150,40 @@ func (c *Client) requestHystrix(method string, urlStr string, body interface{}) 
 	}
 }
 
-func (c *Client) request(authorization string, method string, urlStr string, body interface{}) (*goreq.Response, error) {
-	resp, err := goreq.Request{
+func (c *Client) request(method string, urlStr string, body interface{}, authorization *string) (*goreq.Response, error) {
+	req := goreq.Request{
 		Method:      method,
 		ContentType: "application/json",
 		Uri:         urlStr,
 		Body:        body,
 		Timeout:     c.Options.Timeout,
 		ShowDebug:   c.Options.ShowDebug,
-	}.WithHeader("Authorization", authorization).Do()
+	}
+
+	if authorization != nil {
+		req.WithHeader("Authorization", *authorization)
+	}
+
+	resp, err := req.Do()
 
 	if err != nil {
 		return nil, stackerr.Wrap(err)
 	}
 
 	return resp, nil
+}
+
+func (c *Client) getAuthorization() (*string, error) {
+	if c.TokenManager == nil {
+		return nil, nil
+	}
+
+	token, err := c.TokenManager.GetToken()
+	if err != nil {
+		return nil, err
+	}
+
+	return &token.Authorization, nil
 }
 
 func copyBody(b interface{}) ([]byte, error) {
