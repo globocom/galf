@@ -4,3 +4,4 @@
 Godeps/_workspace
 .GOPATH
 gin-bin
+vendor
