@@ -22,10 +22,16 @@ help:
 	printf "\n"
 
 ## Install dependencies of the project
-setup:
+setup: vendor-install
 	@go get golang.org/x/tools/cmd/cover
 	@go get gopkg.in/check.v1
 	@go get -v ./...
+
+vendor-update:
+	@glide update
+
+vendor-install:
+	@glide install
 
 ## Runs the project unit tests
 test:
