@@ -29,5 +29,5 @@ setup:
 
 ## Runs the project unit tests
 test:
-	@go test -v -cover ./...
-	@go vet ./...
+	@go test -v -cover `go list | grep -v vendor`
+	@go vet `go list | grep -v vendor`
