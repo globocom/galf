@@ -1,0 +1,9 @@
+package: github.com/globocom/galf
+import:
+- package: github.com/afex/hystrix-go
+  subpackages:
+  - hystrix
+- package: github.com/facebookgo/stackerr
+- package: github.com/franela/goreq
+testImport:
+- package: gopkg.in/check.v1

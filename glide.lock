@@ -1,0 +1,18 @@
+hash: ab49356775cef2242497e74d451f08e6de486b697e1e6fd02b1c627ad1694513
+updated: 2016-10-31T17:24:49.935506777-02:00
+imports:
+- name: github.com/afex/hystrix-go
+  version: 39520ddd07a9d9a071d615f7476798659f5a3b89
+  subpackages:
+  - hystrix
+  - hystrix/metric_collector
+  - hystrix/rolling
+- name: github.com/facebookgo/stack
+  version: 751773369052141c013c6e827a71e8f35c07879c
+- name: github.com/facebookgo/stackerr
+  version: c2fcf88613f4fc155efcb81619424db6cbb5bce0
+- name: github.com/franela/goreq
+  version: fc08df6ca2d4a0d1a5ae24739aa268863943e723
+testImports:
+- name: gopkg.in/check.v1
+  version: 4f90aeace3a26ad7021961c297b22c42160c7b25
