@@ -123,7 +123,7 @@ func (c *Client) requestHystrix(method string, urlStr string, body interface{}) 
 	}
 
 	output := make(chan *goreq.Response, 1)
-	errors := hystrix.Go(c.Options.HystrixConfig.configName, func() error {
+	errors := hystrix.Go(c.Options.HystrixConfig.Name, func() error {
 
 		resp, err := c.request(token.Authorization, method, urlStr, body)
 		if err != nil {
@@ -132,6 +132,7 @@ func (c *Client) requestHystrix(method string, urlStr string, body interface{}) 
 		output <- resp
 
 		return nil
+
 	}, nil)
 
 	select {

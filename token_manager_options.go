@@ -39,6 +39,6 @@ func NewTokenOptions(timeout time.Duration, debug bool, maxRetries int, circuitN
 		ShowDebug:     debug,
 		MaxRetries:    maxRetries,
 		Backoff:       tokenBackoff,
-		HystrixConfig: &HystrixConfig{Name: circuitName},
+		HystrixConfig: NewHystrixConfig(circuitName),
 	}
 }

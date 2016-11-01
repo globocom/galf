@@ -108,7 +108,7 @@ func (tm *OAuthTokenManager) do() (token *Token, err error) {
 func (tm *OAuthTokenManager) requestHystrix() (*goreq.Response, error) {
 
 	output := make(chan *goreq.Response, 1)
-	errors := hystrix.Go(tm.Options.HystrixConfig.configName, func() error {
+	errors := hystrix.Go(tm.Options.HystrixConfig.Name, func() error {
 
 		resp, err := tm.request()
 		if err != nil {

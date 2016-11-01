@@ -8,11 +8,11 @@ import (
 	"github.com/afex/hystrix-go/hystrix"
 )
 
-var hystrixConfigs map[string]bool
+var hystrixConfigs map[string]*HystrixConfig
 var hystrixMutex *sync.RWMutex
 
 func init() {
-	hystrixConfigs = make(map[string]bool)
+	hystrixConfigs = make(map[string]*HystrixConfig)
 	hystrixMutex = &sync.RWMutex{}
 }
 
@@ -21,36 +21,36 @@ type HystrixConfig struct {
 	configName string
 }
 
-func (hc *HystrixConfig) valid() error {
-	if hc.configName != "" {
-		return nil
+func NewHystrixConfig(configName string) *HystrixConfig {
+	return &HystrixConfig{
+		Name:       formatHystrixConfigName(configName),
+		configName: configName,
 	}
+}
 
-	if !existHystrixConfig(hc.Name) {
-		msg := fmt.Sprintf("Hystrix config name not found: %s", hc.Name)
+func (hc *HystrixConfig) valid() error {
+	hystrixMutex.RLock()
+	defer hystrixMutex.RUnlock()
+
+	_, exists := hystrixConfigs[hc.Name]
+	if !exists {
+		msg := fmt.Sprintf("Hystrix config name not found: %s", hc.configName)
 		return errors.New(msg)
 	}
 
-	hc.configName = getHystrixConfigName(hc.Name)
 	return nil
 }
 
 // ConfigureCommand applies settings for a circuit
-func HystrixConfigureCommand(name string, config hystrix.CommandConfig) {
+func HystrixConfigureCommand(configName string, config hystrix.CommandConfig) {
 	hystrixMutex.Lock()
 	defer hystrixMutex.Unlock()
-	configName := getHystrixConfigName(name)
-	hystrix.ConfigureCommand(configName, config)
-	hystrixConfigs[configName] = true
+
+	hc := NewHystrixConfig(configName)
+	hystrix.ConfigureCommand(hc.Name, config)
+	hystrixConfigs[hc.Name] = hc
 }
 
-func existHystrixConfig(name string) bool {
-	hystrixMutex.RLock()
-	defer hystrixMutex.RUnlock()
-	_, exists := hystrixConfigs[getHystrixConfigName(name)]
-	return exists
-}
-
-func getHystrixConfigName(name string) string {
+func formatHystrixConfigName(name string) string {
 	return fmt.Sprintf("%s_galf", name)
 }
