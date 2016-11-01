@@ -37,3 +37,6 @@ vendor-install:
 test:
 	@go test -v -cover `go list | grep -v vendor`
 	@go vet `go list | grep -v vendor`
+
+test_race:
+	@go test -cpu=2 -race -v `go list | grep -v vendor`
