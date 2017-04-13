@@ -167,13 +167,30 @@ func (cs *clientSuite) TestStatusUnauthorizedClient(c *check.C) {
 	c.Assert(resp.StatusCode, check.Equals, http.StatusUnauthorized)
 }
 
+func (cs *clientSuite) TestDefaultClientOptionsClient(c *check.C) {
+	ts := newTestServerCustom(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", r.Header.Get("Content-Type") + "; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+	})
+	defer ts.Close()
+
+	client := NewClient()
+	url := fmt.Sprintf("%s/ClientOptions/feed/1", ts.URL)
+	resp, err := client.Get(url)
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
+	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
+}
+
 func (cs *clientSuite) TestClientOptionsClient(c *check.C) {
 	ts := newTestServerCustom(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", r.Header.Get("Content-Type") + "; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 	})
 	defer ts.Close()
 
 	clientOptions := ClientOptions{
+		ContentType:   "application/my-custom-type",
 		Timeout:       DefaultClientTimeout,
 		MaxRetries:    DefaultClientMaxRetries,
 		Backoff:       ConstantBackOff,
@@ -186,6 +203,7 @@ func (cs *clientSuite) TestClientOptionsClient(c *check.C) {
 	resp, err := client.Get(url)
 	c.Assert(err, check.IsNil)
 	c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
+	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/my-custom-type; charset=utf-8")
 }
 
 func (cs *clientSuite) TestHystrixClient(c *check.C) {
