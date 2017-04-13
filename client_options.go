@@ -9,6 +9,7 @@ const (
 
 type (
 	ClientOptions struct {
+		ContentType   string
 		Timeout       time.Duration
 		Backoff       BackoffStrategy
 		MaxRetries    int
@@ -19,6 +20,7 @@ type (
 
 var (
 	defaultClientOptions = ClientOptions{
+		ContentType:   "application/json",
 		Timeout:       DefaultClientTimeout,
 		MaxRetries:    DefaultClientMaxRetries,
 		Backoff:       ConstantBackOff,
