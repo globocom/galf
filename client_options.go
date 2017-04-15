@@ -5,6 +5,7 @@ import "time"
 const (
 	DefaultClientTimeout    = 20 * time.Second
 	DefaultClientMaxRetries = 2
+	DefaultContentType      = "application/json"
 )
 
 type (
@@ -20,7 +21,7 @@ type (
 
 var (
 	defaultClientOptions = ClientOptions{
-		ContentType:   "application/json",
+		ContentType:   DefaultContentType,
 		Timeout:       DefaultClientTimeout,
 		MaxRetries:    DefaultClientMaxRetries,
 		Backoff:       ConstantBackOff,

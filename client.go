@@ -146,7 +146,7 @@ func (c *Client) requestHystrix(method string, urlStr string, body interface{}) 
 func (c *Client) request(authorization string, method string, urlStr string, body interface{}) (*goreq.Response, error) {
 	resp, err := goreq.Request{
 		Method:      method,
-		ContentType: c.Options.ContentType,
+		ContentType: c.getContentType(),
 		Uri:         urlStr,
 		Body:        body,
 		Timeout:     c.Options.Timeout,
@@ -158,6 +158,14 @@ func (c *Client) request(authorization string, method string, urlStr string, bod
 	}
 
 	return resp, nil
+}
+
+func (c *Client) getContentType() (contentType string) {
+	contentType = c.Options.ContentType
+	if contentType == "" {
+		contentType = DefaultContentType
+	}
+	return contentType
 }
 
 func copyBody(b interface{}) ([]byte, error) {
