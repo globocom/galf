@@ -30,9 +30,9 @@ func NewHystrixConfig(configName string) *HystrixConfig {
 
 func (hc *HystrixConfig) valid() error {
 	hystrixMutex.RLock()
-	defer hystrixMutex.RUnlock()
-
 	_, exists := hystrixConfigs[hc.Name]
+	hystrixMutex.RUnlock()
+
 	if !exists {
 		msg := fmt.Sprintf("Hystrix config name not found: %s", hc.configName)
 		return errors.New(msg)
