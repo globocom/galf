@@ -17,7 +17,7 @@ const (
 
 type (
 	TokenManager interface {
-		GetToken() (Token, error)
+		GetToken() (*Token, error)
 	}
 
 	OAuthTokenManager struct {
@@ -56,30 +56,25 @@ func NewTokenManager(tokenEndPoint string, clientId string, clientSecret string,
 	return tm
 }
 
-func (tm *OAuthTokenManager) GetToken() (Token, error) {
+func (tm *OAuthTokenManager) GetToken() (*Token, error) {
 
-	if tm.token == nil || !tm.token.isValid() {
-		for i := 1; i <= tm.Options.MaxRetries; i++ {
-			token, err := tm.do()
-
-			if err == nil && !token.isValid() {
-				err = TokenExpiredError
-			}
-
-			if err != nil {
-				if i < tm.Options.MaxRetries {
-					time.Sleep(tm.Options.Backoff(i))
-					continue
-				}
-				return Token{}, err
-			}
-
-			tm.token = token
-			return *tm.token, nil
-		}
+	if tm.token != nil && tm.token.isValid() {
+		return tm.token, nil
 	}
 
-	return *tm.token, nil
+	var err error
+	for i := 1; i <= tm.Options.MaxRetries; i++ {
+		tm.token, err = tm.do()
+
+		if err != nil && i < tm.Options.MaxRetries {
+			time.Sleep(tm.Options.Backoff(i))
+			continue
+		}
+
+		return tm.token, err
+	}
+
+	return tm.token, err
 }
 
 func (tm *OAuthTokenManager) do() (token *Token, err error) {
