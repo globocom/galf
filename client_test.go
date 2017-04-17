@@ -181,7 +181,7 @@ func (cs *clientSuite) TestDefaultClientOptionsClient(c *check.C) {
 	c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
 	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
 
-	clientOptions = ClientOptions{
+	clientOptions := ClientOptions{
 		Timeout:       DefaultClientTimeout,
 		MaxRetries:    DefaultClientMaxRetries,
 		Backoff:       ConstantBackOff,

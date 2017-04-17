@@ -30,13 +30,6 @@ var (
 		DefaultClientMaxRetries,
 		bsGatewayToken,
 	)
-
-	clientOptions = NewClientOptions(
-		DefaultClientTimeout,
-		false,
-		DefaultClientMaxRetries,
-		"",
-	)
 )
 
 var _ = check.Suite(&tokenManagerSuite{})
@@ -90,15 +83,24 @@ func (tms *tokenManagerSuite) TestTokenManagerRetryFail(c *check.C) {
 		w.WriteHeader(http.StatusBadGateway)
 	})
 
+	tokenOptionsLinear := NewTokenOptions(
+		DefaultClientTimeout,
+		false,
+		DefaultClientMaxRetries,
+		bsGatewayToken,
+		LinearBackoff,
+	)
+
 	tm := NewTokenManager(
 		ts.URL+"/token",
 		"ClientId",
 		"ClientSecret",
-		tokenOptions,
+		tokenOptionsLinear,
 	)
 
 	token, err := tm.GetToken()
 	c.Assert(err, check.NotNil)
+	c.Assert(err, check.ErrorMatches, "Failed to request token .*")
 	c.Assert(token, check.IsNil)
 	c.Assert(retries, check.Equals, DefaultTokenMaxRetries)
 }
@@ -116,11 +118,14 @@ func (tms *tokenManagerSuite) TestTokenManagerRetryOk(c *check.C) {
 		}
 	})
 
+	var tokenOptionsExponential = tokenOptions
+	tokenOptionsExponential.Backoff = ExponentialBackoff
+
 	tm := NewTokenManager(
 		ts.URL+"/token",
 		"ClientId",
 		"ClientSecret",
-		tokenOptions,
+		tokenOptionsExponential,
 	)
 
 	token, err := tm.GetToken()
