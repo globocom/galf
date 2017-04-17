@@ -180,6 +180,21 @@ func (cs *clientSuite) TestDefaultClientOptionsClient(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
 	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
+
+	clientOptions = ClientOptions{
+		Timeout:       DefaultClientTimeout,
+		MaxRetries:    DefaultClientMaxRetries,
+		Backoff:       ConstantBackOff,
+		ShowDebug:     false,
+		HystrixConfig: nil,
+	}
+
+	client = NewClient(clientOptions)
+	url = fmt.Sprintf("%s/ClientOptions/feed/1", ts.URL)
+	resp, err = client.Get(url)
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
+	c.Assert(resp.Header.Get("Content-Type"), check.Equals, "application/json; charset=utf-8")
 }
 
 func (cs *clientSuite) TestClientOptionsClient(c *check.C) {

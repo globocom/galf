@@ -1,6 +1,8 @@
 package galf
 
 import (
+	"fmt"
+	"net/http"
 	"net/http/httptest"
 
 	"github.com/afex/hystrix-go/hystrix"
@@ -77,4 +79,54 @@ func (tms *tokenManagerSuite) TestTokenManagerInvalid(c *check.C) {
 	c.Assert(token, check.NotNil)
 	c.Assert(token.TokenType, check.Equals, "Bearer")
 	c.Assert(token.isValid(), check.Equals, false)
+}
+
+func (tms *tokenManagerSuite) TestTokenManagerRetryFail(c *check.C) {
+	var retries = 0
+
+	HystrixConfigureCommand(bsGatewayToken, bsGatewayTokenConfig)
+	ts := newTestServerCustom(func(w http.ResponseWriter, r *http.Request) {
+		retries = retries + 1
+		w.WriteHeader(http.StatusBadGateway)
+	})
+
+	tm := NewTokenManager(
+		ts.URL+"/token",
+		"ClientId",
+		"ClientSecret",
+		tokenOptions,
+	)
+
+	token, err := tm.GetToken()
+	c.Assert(err, check.NotNil)
+	c.Assert(token, check.IsNil)
+	c.Assert(retries, check.Equals, DefaultTokenMaxRetries)
+}
+
+func (tms *tokenManagerSuite) TestTokenManagerRetryOk(c *check.C) {
+	var retries = 0
+
+	HystrixConfigureCommand(bsGatewayToken, bsGatewayTokenConfig)
+	ts := newTestServerCustom(func(w http.ResponseWriter, r *http.Request) {
+		retries = retries + 1
+		if retries > 1 {
+			fmt.Fprint(w, fmt.Sprintf(`{"access_token": "nonenoenoe", "token_type": "bearer", "expires_in": %d}`, 100))
+		} else {
+			w.WriteHeader(http.StatusBadGateway)
+		}
+	})
+
+	tm := NewTokenManager(
+		ts.URL+"/token",
+		"ClientId",
+		"ClientSecret",
+		tokenOptions,
+	)
+
+	token, err := tm.GetToken()
+	c.Assert(err, check.IsNil)
+	c.Assert(token, check.NotNil)
+	c.Assert(retries, check.Equals, DefaultTokenMaxRetries)
+	c.Assert(token.TokenType, check.Equals, "Bearer")
+	c.Assert(token.isValid(), check.Equals, true)
 }
