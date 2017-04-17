@@ -169,7 +169,7 @@ func (cs *clientSuite) TestStatusUnauthorizedClient(c *check.C) {
 
 func (cs *clientSuite) TestDefaultClientOptionsClient(c *check.C) {
 	ts := newTestServerCustom(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", r.Header.Get("Content-Type") + "; charset=utf-8")
+		w.Header().Set("Content-Type", r.Header.Get("Content-Type")+"; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 	})
 	defer ts.Close()
@@ -184,7 +184,7 @@ func (cs *clientSuite) TestDefaultClientOptionsClient(c *check.C) {
 
 func (cs *clientSuite) TestClientOptionsClient(c *check.C) {
 	ts := newTestServerCustom(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", r.Header.Get("Content-Type") + "; charset=utf-8")
+		w.Header().Set("Content-Type", r.Header.Get("Content-Type")+"; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 	})
 	defer ts.Close()
