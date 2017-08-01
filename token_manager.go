@@ -3,6 +3,7 @@ package galf
 import (
 	"encoding/base64"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/afex/hystrix-go/hystrix"
@@ -32,7 +33,12 @@ type (
 
 var (
 	defaultTokenManager TokenManager
+	tokenMutex          *sync.Mutex
 )
+
+func init() {
+	tokenMutex = &sync.Mutex{}
+}
 
 func SetDefaultTokenManager(tokenManager TokenManager) {
 	defaultTokenManager = tokenManager
@@ -57,13 +63,20 @@ func NewTokenManager(tokenEndPoint string, clientId string, clientSecret string,
 }
 
 func (tm *OAuthTokenManager) GetToken() (*Token, error) {
+	var err error
 
-	if tm.token != nil && tm.token.isValid() {
+	if tm.isValid() {
 		return tm.token, nil
 	}
 
-	var err error
+	tokenMutex.Lock()
+	defer tokenMutex.Unlock()
 	for i := 1; i <= tm.Options.MaxRetries; i++ {
+
+		if tm.isValid() {
+			return tm.token, nil
+		}
+
 		tm.token, err = tm.do()
 
 		if err != nil && i < tm.Options.MaxRetries {
@@ -75,6 +88,10 @@ func (tm *OAuthTokenManager) GetToken() (*Token, error) {
 	}
 
 	return tm.token, err
+}
+
+func (tm *OAuthTokenManager) isValid() bool {
+	return tm.token != nil && tm.token.isValid()
 }
 
 func (tm *OAuthTokenManager) do() (token *Token, err error) {
