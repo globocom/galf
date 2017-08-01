@@ -8,9 +8,9 @@ import (
 // BackoffStrategy is used to determine how long a retry request should wait until attempted
 type BackoffStrategy func(retry int) time.Duration
 
-// ConstantBackOff always returns 100 Millisecond
+// ConstantBackOff always returns 50 Millisecond
 func ConstantBackOff(_ int) time.Duration {
-	return 100 * time.Millisecond
+	return 50 * time.Millisecond
 }
 
 // ExponentialBackoff returns ever increasing backoffs by a power of 2 in seconds
