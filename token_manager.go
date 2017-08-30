@@ -106,7 +106,7 @@ func (tm *OAuthTokenManager) do() (token *Token, err error) {
 		}
 	}
 
-	defer resp.Body.Close()
+	defer resp.Body.Close() // nolint: errcheck
 	if token, err = newToken(resp.Body); err != nil {
 		return nil, err
 	}
@@ -156,7 +156,7 @@ func (tm *OAuthTokenManager) request() (*goreq.Response, error) {
 		if body, err = resp.Body.ToString(); err != nil {
 			return nil, stackerr.Wrap(err)
 		}
-		resp.Body.Close()
+		resp.Body.Close() // nolint:errcheck
 
 		erroMsg := fmt.Sprintf("Failed to request token url: %s - statusCode: %d - body: %s", resp.Request.URL, resp.StatusCode, body)
 		return nil, NewHttpError(resp.StatusCode, erroMsg)
