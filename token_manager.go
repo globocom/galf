@@ -28,17 +28,13 @@ type (
 		Authorization string
 		Options       TokenOptions
 		token         *Token
+		mutex         *sync.Mutex
 	}
 )
 
 var (
 	defaultTokenManager TokenManager
-	tokenMutex          *sync.Mutex
 )
-
-func init() {
-	tokenMutex = &sync.Mutex{}
-}
 
 func SetDefaultTokenManager(tokenManager TokenManager) {
 	defaultTokenManager = tokenManager
@@ -57,6 +53,7 @@ func NewTokenManager(tokenEndPoint string, clientId string, clientSecret string,
 		ClientSecret:  clientSecret,
 		Authorization: authorization,
 		Options:       tokenOptions,
+		mutex:         &sync.Mutex{},
 	}
 
 	return tm
@@ -69,8 +66,8 @@ func (tm *OAuthTokenManager) GetToken() (*Token, error) {
 		return tm.token, nil
 	}
 
-	tokenMutex.Lock()
-	defer tokenMutex.Unlock()
+	tm.mutex.Lock()
+	defer tm.mutex.Unlock()
 	for i := 1; i <= tm.Options.MaxRetries; i++ {
 
 		if tm.isValid() {
