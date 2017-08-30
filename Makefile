@@ -21,17 +21,30 @@ help:
 	{ lastLine = $$0 }' $(MAKEFILE_LIST) | sort
 	printf "\n"
 
-## Install dependencies of the project
-setup: vendor-install
+## Setup of the project
+setup: 
+	@brew install graphviz
+	@brew install dep
 	@go get golang.org/x/tools/cmd/cover
-	@go get gopkg.in/check.v1
-	@go get -v ./...
+	@make vendor-install
 
-vendor-update:
-	@glide update
-
+## Install dependencies of the project
 vendor-install:
-	@glide install
+	@dep ensure -v
+
+## Visualizing dependencies status of the project
+vendor-status:
+	@dep status
+
+## Visualizing dependencies 
+vendor-view:
+	@dep status -dot | dot -T png | open -f -a /Applications/Preview.app
+
+## Update dependencies of the project
+vendor-update:
+	@echo "READ https://github.com/golang/dep"
+	@echo ">> $$ dep ensure -update"
+	@echo ">> $$ dep ensure -add github.com/foo/bar"
 
 ## Runs the project unit tests
 test:
