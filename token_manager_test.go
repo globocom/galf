@@ -3,16 +3,13 @@ package galf
 import (
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 
 	"github.com/afex/hystrix-go/hystrix"
 
 	check "gopkg.in/check.v1"
 )
 
-type tokenManagerSuite struct {
-	server *httptest.Server
-}
+type tokenManagerSuite struct{}
 
 var (
 	bsGatewayTokenConfig = hystrix.CommandConfig{

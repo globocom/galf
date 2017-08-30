@@ -14,7 +14,6 @@ type (
 		MaxRetries    int
 		ShowDebug     bool
 		HystrixConfig *HystrixConfig
-		useHystrix    bool
 	}
 )
 
