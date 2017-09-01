@@ -46,6 +46,7 @@ func (cs *clientSuite) TestGetClient(c *check.C) {
 	c.Assert(body, check.Equals, `{"method": "GET"}`)
 }
 
+// nolint:dupl
 func (cs *clientSuite) TestPostClient(c *check.C) {
 	ts := newTestServerCustom(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
@@ -92,6 +93,7 @@ func (cs *clientSuite) TestPostClient(c *check.C) {
 	assertPost(resp, err)
 }
 
+// nolint:dupl
 func (cs *clientSuite) TestPutClient(c *check.C) {
 	ts := newTestServerCustom(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
