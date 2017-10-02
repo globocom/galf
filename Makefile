@@ -61,6 +61,7 @@ lint: ## Run all the linters
 		--enable=vet \
 		--enable=vetshadow \
 		--deadline=10m \
+		--aggregate \
 		./...
 
 
