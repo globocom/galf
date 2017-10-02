@@ -19,6 +19,7 @@ const (
 type (
 	TokenManager interface {
 		GetToken() (*Token, error)
+		ResetToken()
 	}
 
 	OAuthTokenManager struct {
@@ -85,6 +86,10 @@ func (tm *OAuthTokenManager) GetToken() (*Token, error) {
 	}
 
 	return tm.token, err
+}
+
+func (tm *OAuthTokenManager) ResetToken() {
+	tm.token = nil
 }
 
 func (tm *OAuthTokenManager) isValid() bool {

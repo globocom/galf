@@ -358,3 +358,58 @@ func (cs *clientSuite) TestHystrixMultithreadedClient(c *check.C) {
 
 	c.Assert(numCreates, check.Equals, int32(exceedRequests))
 }
+
+func (cs *clientSuite) TestGetClientRequestOptionsHeader(c *check.C) {
+
+	ts := newTestServerCustom(func(rw http.ResponseWriter, r *http.Request) {
+		responseHeaders(rw, r)
+		rw.WriteHeader(http.StatusOK)
+	})
+	defer ts.Close()
+
+	url := fmt.Sprintf("%s/requestOptions/feed/1", ts.URL)
+
+	requestOptions := NewRequestOptions()
+	requestOptions.AddHeader("token", "1234567890")
+
+	client := NewClient()
+	resp, err := client.Get(url, requestOptions)
+
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
+	c.Assert(resp.Header.Get("token"), check.Equals, "1234567890")
+}
+
+func (cs *clientSuite) TestGetClientRequestOptionsHeaders(c *check.C) {
+
+	ts := newTestServerCustom(func(rw http.ResponseWriter, r *http.Request) {
+		responseHeaders(rw, r)
+		rw.WriteHeader(http.StatusOK)
+	})
+	defer ts.Close()
+
+	url := fmt.Sprintf("%s/requestOptions/feed/2", ts.URL)
+
+	headers := map[string]string{
+		"header1": "123",
+		"header2": "456",
+	}
+	requestOptions := NewRequestOptions()
+	requestOptions.AddHeaders(headers)
+
+	client := NewClient()
+	resp, err := client.Get(url, requestOptions)
+
+	c.Assert(err, check.IsNil)
+	c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
+	c.Assert(resp.Header.Get("header1"), check.Equals, "123")
+	c.Assert(resp.Header.Get("header2"), check.Equals, "456")
+}
+
+func responseHeaders(rw http.ResponseWriter, r *http.Request) {
+	for name, headers := range r.Header {
+		for _, v := range headers {
+			rw.Header().Set(name, v)
+		}
+	}
+}

@@ -51,40 +51,46 @@ func NewClientCustom(tokenManager TokenManager, options ClientOptions) *Client {
 	}
 }
 
-func (c *Client) Get(urlStr string) (*goreq.Response, error) {
-	return c.retry("GET", urlStr, nil)
+func (c *Client) Get(url string, reqOptions ...*requestOptions) (*goreq.Response, error) {
+	return c.retry(http.MethodGet, url, nil, reqOptions...)
 }
 
-func (c *Client) Post(urlStr string, body interface{}) (*goreq.Response, error) {
-	return c.retry("POST", urlStr, body)
+func (c *Client) Post(url string, body interface{}, reqOptions ...*requestOptions) (*goreq.Response, error) {
+	return c.retry(http.MethodPost, url, body, reqOptions...)
 }
 
-func (c *Client) Put(urlStr string, body interface{}) (*goreq.Response, error) {
-	return c.retry("PUT", urlStr, body)
+func (c *Client) Put(url string, body interface{}, reqOptions ...*requestOptions) (*goreq.Response, error) {
+	return c.retry(http.MethodPut, url, body, reqOptions...)
 }
 
-func (c *Client) Delete(urlStr string) (*goreq.Response, error) {
-	return c.retry("DELETE", urlStr, nil)
+func (c *Client) Delete(url string, reqOptions ...*requestOptions) (*goreq.Response, error) {
+	return c.retry(http.MethodDelete, url, nil, reqOptions...)
 }
 
-func (c *Client) retry(method string, urlStr string, body interface{}) (resp *goreq.Response, err error) {
+func (c *Client) retry(method string, url string, body interface{}, reqOptions ...*requestOptions) (resp *goreq.Response, err error) {
 
 	if c.TokenManager == nil {
 		return nil, errors.New("Configure tokenManager or SetDefaultTokenManager")
 	}
 
-	originalBody, err := copyBody(body)
-	if err != nil {
+	var reqOption *requestOptions
+	if len(reqOptions) > 0 {
+		reqOption = reqOptions[0]
+	}
+
+	var originalBody []byte
+	if originalBody, err = copyBody(body); err != nil {
 		return nil, err
 	}
 
 	var bodyReader io.Reader
-	for i := 0; i < c.Options.MaxRetries; i++ {
+	for i := 1; i <= c.Options.MaxRetries; i++ {
+
 		if len(originalBody) > 0 {
 			bodyReader = bytes.NewBuffer(originalBody)
 		}
 
-		if resp, err = c.do(method, urlStr, bodyReader); err != nil {
+		if resp, err = c.do(method, url, bodyReader, reqOption); err != nil {
 			return nil, err
 		}
 
@@ -92,7 +98,8 @@ func (c *Client) retry(method string, urlStr string, body interface{}) (resp *go
 			return resp, nil
 		}
 
-		if i < c.Options.MaxRetries-1 {
+		if i < c.Options.MaxRetries {
+			c.TokenManager.ResetToken()
 			time.Sleep(c.Options.Backoff(i))
 		}
 	}
@@ -100,32 +107,29 @@ func (c *Client) retry(method string, urlStr string, body interface{}) (resp *go
 	return resp, err
 }
 
-func (c *Client) do(method string, urlStr string, body interface{}) (*goreq.Response, error) {
-	if c.Options.HystrixConfig == nil {
-		token, err := c.TokenManager.GetToken()
-		if err != nil {
-			return nil, err
-		}
-		return c.request(token.Authorization, method, urlStr, body)
-	}
-
-	if err := c.Options.HystrixConfig.valid(); err != nil {
-		return nil, err
-	}
-	return c.requestHystrix(method, urlStr, body)
-}
-
-func (c *Client) requestHystrix(method string, urlStr string, body interface{}) (*goreq.Response, error) {
+func (c *Client) do(method string, url string, body interface{}, reqOption *requestOptions) (*goreq.Response, error) {
 
 	token, err := c.TokenManager.GetToken()
 	if err != nil {
 		return nil, err
 	}
 
+	if c.Options.HystrixConfig == nil {
+		return c.request(token.Authorization, method, url, body, reqOption)
+	}
+
+	if err := c.Options.HystrixConfig.valid(); err != nil {
+		return nil, err
+	}
+	return c.requestHystrix(token.Authorization, method, url, body, reqOption)
+}
+
+func (c *Client) requestHystrix(authorization string, method string, url string, body interface{}, reqOption *requestOptions) (*goreq.Response, error) {
+
 	output := make(chan *goreq.Response, 1)
 	errors := hystrix.Go(c.Options.HystrixConfig.Name, func() error {
 
-		resp, err := c.request(token.Authorization, method, urlStr, body)
+		resp, err := c.request(authorization, method, url, body, reqOption)
 		if err != nil {
 			return err
 		}
@@ -143,15 +147,23 @@ func (c *Client) requestHystrix(method string, urlStr string, body interface{}) 
 	}
 }
 
-func (c *Client) request(authorization string, method string, urlStr string, body interface{}) (*goreq.Response, error) {
-	resp, err := goreq.Request{
+func (c *Client) request(authorization string, method string, url string, body interface{}, reqOption *requestOptions) (*goreq.Response, error) {
+	req := goreq.Request{
 		Method:      method,
 		ContentType: c.getContentType(),
-		Uri:         urlStr,
+		Uri:         url,
 		Body:        body,
 		Timeout:     c.Options.Timeout,
 		ShowDebug:   c.Options.ShowDebug,
-	}.WithHeader("Authorization", authorization).Do()
+	}.WithHeader("Authorization", authorization)
+
+	if reqOption != nil && reqOption.headers != nil {
+		for _, header := range reqOption.headers {
+			req.AddHeader(header.name, header.value)
+		}
+	}
+
+	resp, err := req.Do()
 
 	if err != nil {
 		return nil, stackerr.Wrap(err)
