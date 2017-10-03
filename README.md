@@ -15,7 +15,7 @@ Assuming you have a working Go environment:
 go get github.com/globocom/galf
 ```
 
-[go-version]:      https://img.shields.io/badge/Go->=1.4-6DD2F0.svg
+[go-version]:      https://img.shields.io/badge/Go->=1.6-6DD2F0.svg
 [coverage-badge]:  https://coveralls.io/repos/github/globocom/galf/badge.svg?branch=master
 [coverage-link]:   https://coveralls.io/github/globocom/galf?branch=master
 [travis-badge]:    https://travis-ci.org/globocom/galf.svg?branch=master
