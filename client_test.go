@@ -406,6 +406,22 @@ func (cs *clientSuite) TestGetClientRequestOptionsHeaders(c *check.C) {
 	c.Assert(resp.Header.Get("header2"), check.Equals, "456")
 }
 
+func (cs *clientSuite) TestSetCustomHTTPClient(c *check.C) {
+	currentClient := goreq.DefaultClient
+	currentTransport := goreq.DefaultTransport
+
+	defer func() {
+		goreq.DefaultClient = currentClient
+		goreq.DefaultTransport = currentTransport
+	}()
+
+	customClient := &http.Client{Timeout: time.Hour}
+	SetCustomHTTPClient(customClient)
+
+	c.Assert(goreq.DefaultClient, check.Not(check.Equals), defaultClient)
+	c.Assert(goreq.DefaultClient.Timeout, check.Equals, time.Hour)
+}
+
 func responseHeaders(rw http.ResponseWriter, r *http.Request) {
 	for name, headers := range r.Header {
 		for _, v := range headers {

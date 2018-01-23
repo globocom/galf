@@ -31,8 +31,7 @@ var (
 )
 
 func init() {
-	goreq.DefaultTransport = defaultTransport
-	goreq.DefaultClient = defaultClient
+	SetCustomHTTPClient(defaultClient)
 }
 
 // NewClient creates a new instance of Client
@@ -52,6 +51,13 @@ func NewClientCustom(tokenManager TokenManager, options ClientOptions) *Client {
 		TokenManager: tokenManager,
 		Options:      options,
 	}
+}
+
+// SetCustomHTTPClient allow the override of both http Client and Transport.
+// The new custom client's transport is used as the new transport
+func SetCustomHTTPClient(client *http.Client) {
+	goreq.DefaultTransport = client.Transport
+	goreq.DefaultClient = client
 }
 
 // Get issues a GET to the specified URL. If reqOptions are given, these values are added to request headers
