@@ -21,7 +21,7 @@ type Client struct {
 }
 
 var (
-	defaultDialer                      = &net.Dialer{Timeout: 30 * time.Second}
+	defaultDialer                      = &net.Dialer{Timeout: time.Second}
 	defaultTransport http.RoundTripper = &http.Transport{
 		Dial:                defaultDialer.Dial,
 		Proxy:               http.ProxyFromEnvironment,
