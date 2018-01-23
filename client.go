@@ -22,7 +22,7 @@ type (
 )
 
 var (
-	defaultDialer                      = &net.Dialer{Timeout: 1000 * time.Second}
+	defaultDialer                      = &net.Dialer{Timeout: 30 * time.Second}
 	defaultTransport http.RoundTripper = &http.Transport{
 		Dial:                defaultDialer.Dial,
 		Proxy:               http.ProxyFromEnvironment,
