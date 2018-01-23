@@ -14,12 +14,11 @@ import (
 	"github.com/franela/goreq"
 )
 
-type (
-	Client struct {
-		TokenManager TokenManager
-		Options      ClientOptions
-	}
-)
+// Client is the galf client's structure
+type Client struct {
+	TokenManager TokenManager
+	Options      ClientOptions
+}
 
 var (
 	defaultDialer                      = &net.Dialer{Timeout: 30 * time.Second}
@@ -36,6 +35,8 @@ func init() {
 	goreq.DefaultClient = defaultClient
 }
 
+// NewClient creates a new instance of Client
+// `options` is used to customize client's configurations. Otherwise the default configurations are used
 func NewClient(options ...ClientOptions) *Client {
 	clientOptions := defaultClientOptions
 	if len(options) > 0 {
@@ -44,6 +45,8 @@ func NewClient(options ...ClientOptions) *Client {
 	return NewClientCustom(defaultTokenManager, clientOptions)
 }
 
+// NewClientCustom create a custom instance of Client
+// Unlike NewClient, tokenManager and options are required
 func NewClientCustom(tokenManager TokenManager, options ClientOptions) *Client {
 	return &Client{
 		TokenManager: tokenManager,
@@ -51,18 +54,22 @@ func NewClientCustom(tokenManager TokenManager, options ClientOptions) *Client {
 	}
 }
 
+// Get issues a GET to the specified URL. If reqOptions are given, these values are added to request headers
 func (c *Client) Get(url string, reqOptions ...*requestOptions) (*goreq.Response, error) {
 	return c.retry(http.MethodGet, url, nil, reqOptions...)
 }
 
+// Post issues a POST to the specified URL, with `body` as payload. If reqOptions are given, these values are added to request headers
 func (c *Client) Post(url string, body interface{}, reqOptions ...*requestOptions) (*goreq.Response, error) {
 	return c.retry(http.MethodPost, url, body, reqOptions...)
 }
 
+// Put issues a PUT to the specified URL, with `body` as payload. If reqOptions are given, these values are added to request headers
 func (c *Client) Put(url string, body interface{}, reqOptions ...*requestOptions) (*goreq.Response, error) {
 	return c.retry(http.MethodPut, url, body, reqOptions...)
 }
 
+// Delete issues a DELETE to the specified URL. If reqOptions are given, these values are added to request headers
 func (c *Client) Delete(url string, reqOptions ...*requestOptions) (*goreq.Response, error) {
 	return c.retry(http.MethodDelete, url, nil, reqOptions...)
 }
