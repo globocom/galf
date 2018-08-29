@@ -22,17 +22,18 @@
 
 
 [[constraint]]
-  branch = "master"
   name = "github.com/afex/hystrix-go"
+  revision = "fa1af6a1f4f56e0e50d427fe901cd604d8c6fb8a"
 
 [[constraint]]
-  branch = "master"
   name = "github.com/facebookgo/stackerr"
+  revision = "c2fcf88613f4fc155efcb81619424db6cbb5bce0"
 
 [[constraint]]
-  branch = "master"
   name = "github.com/franela/goreq"
+  revision = "b5b0f5eb2d16f20345cce0a544a75163579c0b00"
 
 [[constraint]]
-  branch = "v1"
   name = "gopkg.in/check.v1"
+  revision = "20d25e2804050c1cd24a7eea1e7a6447dd0e74ec"
+

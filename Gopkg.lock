@@ -2,38 +2,53 @@
 
 
 [[projects]]
-  branch = "master"
+  digest = "1:0ef07197f29c21ea0d5e3d0f686b5c7bed2e2c69cb8b4be6228d83ee9e4ed5ae"
   name = "github.com/afex/hystrix-go"
-  packages = ["hystrix","hystrix/metric_collector","hystrix/rolling"]
-  revision = "f118cd938f786d24f46cc307981d8f63b7951020"
+  packages = [
+    "hystrix",
+    "hystrix/metric_collector",
+    "hystrix/rolling",
+  ]
+  pruneopts = ""
+  revision = "fa1af6a1f4f56e0e50d427fe901cd604d8c6fb8a"
 
 [[projects]]
   branch = "master"
+  digest = "1:22ecdc3868d6f76bab8898ca594b846c7a23811f210bde19a056a4edbd778935"
   name = "github.com/facebookgo/stack"
   packages = ["."]
+  pruneopts = ""
   revision = "751773369052141c013c6e827a71e8f35c07879c"
 
 [[projects]]
-  branch = "master"
+  digest = "1:75847e6501580cbf5ce061ef3c013fb1b6ee80106d5bd960123a4c02f5522100"
   name = "github.com/facebookgo/stackerr"
   packages = ["."]
+  pruneopts = ""
   revision = "c2fcf88613f4fc155efcb81619424db6cbb5bce0"
 
 [[projects]]
-  branch = "master"
+  digest = "1:d10889ce4a5e570532e5b1f313e1a3ce4460d459ce90c7ccae3bfc89bd5718eb"
   name = "github.com/franela/goreq"
   packages = ["."]
+  pruneopts = ""
   revision = "b5b0f5eb2d16f20345cce0a544a75163579c0b00"
 
 [[projects]]
-  branch = "v1"
+  digest = "1:e75566abfb876e81f00290ec153ff994c33bf8886134c1a38a9a9df5c15a2045"
   name = "gopkg.in/check.v1"
   packages = ["."]
+  pruneopts = ""
   revision = "20d25e2804050c1cd24a7eea1e7a6447dd0e74ec"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "44a8499204d00dbebdae0e5263f2778f43071b666cd4f9ec316e5fd36d5556b5"
+  input-imports = [
+    "github.com/afex/hystrix-go/hystrix",
+    "github.com/facebookgo/stackerr",
+    "github.com/franela/goreq",
+    "gopkg.in/check.v1",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1
