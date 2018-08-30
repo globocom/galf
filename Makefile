@@ -19,7 +19,7 @@ vendor-install:
 
 ## Visualizing dependencies status of the project
 vendor-status:
-	@dep status
+	@dep status -detail
 
 ## Visualizing dependencies 
 vendor-view:

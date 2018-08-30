@@ -20,6 +20,9 @@ type (
 	TokenManager interface {
 		GetToken() (*Token, error)
 		ResetToken()
+		GetTokenEndPoint() string
+		GetClientId() string
+		GetClientSecret() string
 	}
 
 	OAuthTokenManager struct {
@@ -167,4 +170,16 @@ func (tm *OAuthTokenManager) request() (*goreq.Response, error) {
 		return nil, NewHttpError(resp.StatusCode, erroMsg)
 	}
 	return resp, nil
+}
+
+func (tm *OAuthTokenManager) GetTokenEndPoint() string {
+	return tm.TokenEndPoint
+}
+
+func (tm *OAuthTokenManager) GetClientId() string {
+	return tm.ClientId
+}
+
+func (tm *OAuthTokenManager) GetClientSecret() string {
+	return tm.ClientSecret
 }

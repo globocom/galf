@@ -2,6 +2,7 @@ package galf
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -9,8 +10,9 @@ import (
 	"net/http"
 	"time"
 
+	"golang.org/x/oauth2/clientcredentials"
+
 	"github.com/afex/hystrix-go/hystrix"
-	"github.com/facebookgo/stackerr"
 	"github.com/franela/goreq"
 )
 
@@ -99,7 +101,7 @@ func (c *Client) retry(method string, url string, body interface{}, reqOptions .
 		}
 
 		if i < c.Options.MaxRetries {
-			c.TokenManager.ResetToken()
+			// c.TokenManager.ResetToken()
 			time.Sleep(c.Options.Backoff(i))
 		}
 	}
@@ -109,27 +111,27 @@ func (c *Client) retry(method string, url string, body interface{}, reqOptions .
 
 func (c *Client) do(method string, url string, body interface{}, reqOption *requestOptions) (*goreq.Response, error) {
 
-	token, err := c.TokenManager.GetToken()
-	if err != nil {
-		return nil, err
-	}
+	// token, err := c.TokenManager.GetToken()
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	if c.Options.HystrixConfig == nil {
-		return c.request(token.Authorization, method, url, body, reqOption)
+		return c.request(method, url, body, reqOption)
 	}
 
 	if err := c.Options.HystrixConfig.valid(); err != nil {
 		return nil, err
 	}
-	return c.requestHystrix(token.Authorization, method, url, body, reqOption)
+	return c.requestHystrix(method, url, body, reqOption)
 }
 
-func (c *Client) requestHystrix(authorization string, method string, url string, body interface{}, reqOption *requestOptions) (*goreq.Response, error) {
+func (c *Client) requestHystrix(method string, url string, body interface{}, reqOption *requestOptions) (*goreq.Response, error) {
 
 	output := make(chan *goreq.Response, 1)
 	errors := hystrix.Go(c.Options.HystrixConfig.Name, func() error {
 
-		resp, err := c.request(authorization, method, url, body, reqOption)
+		resp, err := c.request(method, url, body, reqOption)
 		if err != nil {
 			return err
 		}
@@ -147,7 +149,18 @@ func (c *Client) requestHystrix(authorization string, method string, url string,
 	}
 }
 
-func (c *Client) request(authorization string, method string, url string, body interface{}, reqOption *requestOptions) (*goreq.Response, error) {
+var cfg *clientcredentials.Config
+
+func (c *Client) request(method string, url string, body interface{}, reqOption *requestOptions) (*goreq.Response, error) {
+	if cfg == nil {
+		cfg = &clientcredentials.Config{
+			ClientID:     c.TokenManager.GetClientId(),
+			ClientSecret: c.TokenManager.GetClientSecret(),
+			TokenURL:     c.TokenManager.GetTokenEndPoint(),
+		}
+		goreq.DefaultClient = cfg.Client(context.Background())
+	}
+
 	req := goreq.Request{
 		Method:      method,
 		ContentType: c.getContentType(),
@@ -155,7 +168,7 @@ func (c *Client) request(authorization string, method string, url string, body i
 		Body:        body,
 		Timeout:     c.Options.Timeout,
 		ShowDebug:   c.Options.ShowDebug,
-	}.WithHeader("Authorization", authorization)
+	}
 
 	if reqOption != nil && reqOption.headers != nil {
 		for _, header := range reqOption.headers {
@@ -166,7 +179,7 @@ func (c *Client) request(authorization string, method string, url string, body i
 	resp, err := req.Do()
 
 	if err != nil {
-		return nil, stackerr.Wrap(err)
+		return nil, err
 	}
 
 	return resp, nil

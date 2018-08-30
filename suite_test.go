@@ -1,7 +1,7 @@
 package galf
 
 import (
-	"fmt"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -42,6 +42,13 @@ func newTestServerToken(expireIn ...int) *httptest.Server {
 
 func handleToken(expire int) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, fmt.Sprintf(`{"access_token": "nonenoenoe", "token_type": "bearer", "expires_in": %d}`, expire))
+		token := Token{
+			AccessToken: "nonenoenoe",
+			TokenType:   "bearer",
+			ExpiresIn:   expire,
+		}
+		content, _ := json.Marshal(token)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Write(content)
 	}
 }

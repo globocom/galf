@@ -37,3 +37,7 @@
   name = "gopkg.in/check.v1"
   revision = "20d25e2804050c1cd24a7eea1e7a6447dd0e74ec"
 
+
+[[constraint]]
+  branch = "master"
+  name = "golang.org/x/oauth2"
