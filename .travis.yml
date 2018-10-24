@@ -7,7 +7,6 @@ git:
   submodules: false
 
 go:
-  - "1.8"
   - "1.9"
   - "1.10"
   - "1.11"
@@ -21,7 +20,7 @@ before_install:
   - if ! go get github.com/golang/tools/cmd/cover; then go get golang.org/x/tools/cmd/cover; fi
 
 install:
-  - vendor-install
+  - make vendor-install
 
 script:
   - $HOME/gopath/bin/goveralls -service=travis-ci
