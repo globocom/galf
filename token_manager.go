@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/afex/hystrix-go/hystrix"
-
 	"github.com/facebookgo/stackerr"
 	"github.com/franela/goreq"
 )

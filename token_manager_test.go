@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/afex/hystrix-go/hystrix"
-
 	check "gopkg.in/check.v1"
 )
 

@@ -11,7 +11,6 @@ import (
 
 	"github.com/afex/hystrix-go/hystrix"
 	"github.com/franela/goreq"
-
 	"gopkg.in/check.v1"
 )
 
