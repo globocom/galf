@@ -2,48 +2,61 @@
 
 
 [[projects]]
-  branch = "master"
-  digest = "1:525cbcfc3a6c9f6027e95581cae08d7b245ac2edcc3f9acea2d4a35709fa7f57"
+  digest = "1:094d4b33fccd5fb1fc85c652ef7f37b55afc7f61556184d78b213bd2fe65585d"
   name = "github.com/afex/hystrix-go"
   packages = [
     "hystrix",
     "hystrix/metric_collector",
     "hystrix/rolling",
   ]
-  pruneopts = ""
-  revision = "f118cd938f786d24f46cc307981d8f63b7951020"
+  pruneopts = "UT"
+  revision = "27fae8d30f1a3cbcab6618d2ee55a4cb43064376"
 
 [[projects]]
   branch = "master"
-  digest = "1:22ecdc3868d6f76bab8898ca594b846c7a23811f210bde19a056a4edbd778935"
+  digest = "1:9a023ac8c30a6871d3fc94c9c0b5a0639ede096c351fd6cdcd7268fe9cb95af2"
   name = "github.com/facebookgo/stack"
   packages = ["."]
-  pruneopts = ""
+  pruneopts = "UT"
   revision = "751773369052141c013c6e827a71e8f35c07879c"
 
 [[projects]]
-  branch = "master"
-  digest = "1:75847e6501580cbf5ce061ef3c013fb1b6ee80106d5bd960123a4c02f5522100"
+  digest = "1:7397bcef80794b4c8863ff30fa55c0d274a6ad44fee985c0e401760fef393f69"
   name = "github.com/facebookgo/stackerr"
   packages = ["."]
-  pruneopts = ""
+  pruneopts = "UT"
   revision = "c2fcf88613f4fc155efcb81619424db6cbb5bce0"
 
 [[projects]]
-  branch = "master"
-  digest = "1:d10889ce4a5e570532e5b1f313e1a3ce4460d459ce90c7ccae3bfc89bd5718eb"
+  digest = "1:9f50f0543353c50296cc01fd8b623198799bc93d34ef3a32b410aa8386fc6e60"
   name = "github.com/franela/goreq"
   packages = ["."]
-  pruneopts = ""
-  revision = "b5b0f5eb2d16f20345cce0a544a75163579c0b00"
+  pruneopts = "UT"
+  revision = "bcd34c9993f899273c74baaa95e15386cd97b6e7"
+
+[[projects]]
+  digest = "1:ca955a9cd5b50b0f43d2cc3aeb35c951473eeca41b34eb67507f1dbcc0542394"
+  name = "github.com/kr/pretty"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "73f6ac0b30a98e433b289500d779f50c1a6f0712"
+  version = "v0.1.0"
+
+[[projects]]
+  digest = "1:15b5cc79aad436d47019f814fde81a10221c740dc8ddf769221a65097fb6c2e9"
+  name = "github.com/kr/text"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "e2ffdb16a802fe2bb95e2e35ff34f0e53aeef34f"
+  version = "v0.1.0"
 
 [[projects]]
   branch = "v1"
-  digest = "1:e75566abfb876e81f00290ec153ff994c33bf8886134c1a38a9a9df5c15a2045"
+  digest = "1:af715ae33cc1f5695c4b2a4e4b21d008add8802a99e15bb467ac7c32edb5000d"
   name = "gopkg.in/check.v1"
   packages = ["."]
-  pruneopts = ""
-  revision = "20d25e2804050c1cd24a7eea1e7a6447dd0e74ec"
+  pruneopts = "UT"
+  revision = "788fd78401277ebd861206a03c884797c6ec5541"
 
 [solve-meta]
   analyzer-name = "dep"
