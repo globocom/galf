@@ -8,7 +8,7 @@ import (
 
 	"github.com/afex/hystrix-go/hystrix"
 	"github.com/facebookgo/stackerr"
-	"github.com/franela/goreq"
+	"github.com/globocom/goreq"
 )
 
 const (
@@ -142,14 +142,20 @@ func (tm *OAuthTokenManager) requestHystrix() (*goreq.Response, error) {
 
 func (tm *OAuthTokenManager) request() (*goreq.Response, error) {
 
-	resp, err := goreq.Request{
+	client := goreq.NewClient(goreq.Options{
+		Timeout: tm.Options.Timeout,
+	})
+
+	req := goreq.Request{
 		Method:      "POST",
 		ContentType: "application/x-www-form-urlencoded",
 		Uri:         tm.TokenEndPoint,
 		Body:        grantType,
 		ShowDebug:   tm.Options.ShowDebug,
-		Timeout:     tm.Options.Timeout,
-	}.WithHeader("Authorization", tm.Authorization).Do()
+	}
+	req.AddHeader("Authorization", tm.Authorization)
+
+	resp, err := client.Do(req)
 
 	if err != nil {
 		return nil, stackerr.Wrap(err)

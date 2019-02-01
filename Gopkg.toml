@@ -34,8 +34,8 @@
   name = "github.com/facebookgo/stackerr"
 
 [[constraint]]
-  revision = "bcd34c9993f899273c74baaa95e15386cd97b6e7"
-  name = "github.com/franela/goreq"
+  version="2.0.0"
+  name = "github.com/globocom/goreq"
 
 [[constraint]]
   branch = "v1"
