@@ -172,20 +172,20 @@ func (c *Client) getContentType() (contentType string) {
 }
 
 func copyBody(b interface{}) ([]byte, error) {
-	switch b.(type) {
+	switch v := b.(type) {
 	case string:
-		return []byte(b.(string)), nil
+		return []byte(v), nil
 
 	case io.Reader:
 		var originalBody bytes.Buffer
-		_, err := io.Copy(&originalBody, b.(io.Reader))
+		_, err := io.Copy(&originalBody, v.(io.Reader))
 		if err != nil {
 			return nil, err
 		}
 		return originalBody.Bytes(), nil
 
 	case []byte:
-		return b.([]byte), nil
+		return v, nil
 
 	case nil:
 		return nil, nil
