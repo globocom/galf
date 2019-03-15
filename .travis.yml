@@ -17,13 +17,12 @@ env:
 before_install:
   - go get github.com/axw/gocov/gocov
   - go get github.com/mattn/goveralls
-  - go get github.com/alecthomas/gometalinter
+  - go get github.com/golangci/golangci-lint/cmd/golangci-lint
   - if ! go get github.com/golang/tools/cmd/cover; then go get golang.org/x/tools/cmd/cover; fi
   - curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 
 install:
   - make vendor-install
-  - gometalinter --install
 
 script:
   - $HOME/gopath/bin/goveralls -service=travis-ci
