@@ -5,36 +5,23 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"time"
 
 	"github.com/afex/hystrix-go/hystrix"
 	"github.com/facebookgo/stackerr"
-	"github.com/franela/goreq"
+	"github.com/globocom/goreq"
 )
 
 type (
 	Client struct {
 		TokenManager TokenManager
 		Options      ClientOptions
+		clientHTTP   goreq.Client
 	}
 )
 
-var (
-	defaultDialer                      = &net.Dialer{Timeout: 1000 * time.Second}
-	defaultTransport http.RoundTripper = &http.Transport{
-		Dial:                defaultDialer.Dial,
-		Proxy:               http.ProxyFromEnvironment,
-		MaxIdleConnsPerHost: 250,
-	}
-	defaultClient = &http.Client{Transport: defaultTransport}
-)
-
-func init() {
-	goreq.DefaultTransport = defaultTransport
-	goreq.DefaultClient = defaultClient
-}
+func init() {}
 
 func NewClient(options ...ClientOptions) *Client {
 	clientOptions := defaultClientOptions
@@ -48,6 +35,10 @@ func NewClientCustom(tokenManager TokenManager, options ClientOptions) *Client {
 	return &Client{
 		TokenManager: tokenManager,
 		Options:      options,
+		clientHTTP: goreq.NewClient(goreq.Options{
+			Timeout:             options.Timeout,
+			MaxIdleConnsPerHost: 250,
+		}),
 	}
 }
 
@@ -153,9 +144,9 @@ func (c *Client) request(authorization string, method string, url string, body i
 		ContentType: c.getContentType(),
 		Uri:         url,
 		Body:        body,
-		Timeout:     c.Options.Timeout,
 		ShowDebug:   c.Options.ShowDebug,
-	}.WithHeader("Authorization", authorization)
+	}
+	req.AddHeader("Authorization", authorization)
 
 	if reqOption != nil && reqOption.headers != nil {
 		for _, header := range reqOption.headers {
@@ -163,7 +154,7 @@ func (c *Client) request(authorization string, method string, url string, body i
 		}
 	}
 
-	resp, err := req.Do()
+	resp, err := c.clientHTTP.Do(req)
 
 	if err != nil {
 		return nil, stackerr.Wrap(err)
@@ -181,20 +172,20 @@ func (c *Client) getContentType() (contentType string) {
 }
 
 func copyBody(b interface{}) ([]byte, error) {
-	switch b.(type) {
+	switch v := b.(type) {
 	case string:
-		return []byte(b.(string)), nil
+		return []byte(v), nil
 
 	case io.Reader:
 		var originalBody bytes.Buffer
-		_, err := io.Copy(&originalBody, b.(io.Reader))
+		_, err := io.Copy(&originalBody, v.(io.Reader))
 		if err != nil {
 			return nil, err
 		}
 		return originalBody.Bytes(), nil
 
 	case []byte:
-		return b.([]byte), nil
+		return v, nil
 
 	case nil:
 		return nil, nil

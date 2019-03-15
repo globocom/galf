@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/afex/hystrix-go/hystrix"
-	"github.com/franela/goreq"
+	"github.com/globocom/goreq"
 	"gopkg.in/check.v1"
 )
 
@@ -403,6 +403,38 @@ func (cs *clientSuite) TestGetClientRequestOptionsHeaders(c *check.C) {
 	c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
 	c.Assert(resp.Header.Get("header1"), check.Equals, "123")
 	c.Assert(resp.Header.Get("header2"), check.Equals, "456")
+}
+
+func (cs *clientSuite) TestConcurrencyRequest(c *check.C) {
+	ts := newTestServerCustom(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `{"method": "GET"}`)
+	})
+	defer ts.Close()
+
+	client := NewClient()
+	url := fmt.Sprintf("%s/get/feed/1", ts.URL)
+	token, e := client.TokenManager.GetToken()
+	c.Assert(e, check.IsNil)
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			resp, err := client.request(token.Authorization, http.MethodGet, url, nil, nil)
+
+			c.Assert(err, check.IsNil)
+			c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
+
+			body, _ := resp.Body.ToString()
+			c.Assert(body, check.Equals, `{"method": "GET"}`)
+		}()
+	}
+	wg.Wait()
+
 }
 
 func responseHeaders(rw http.ResponseWriter, r *http.Request) {

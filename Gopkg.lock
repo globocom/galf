@@ -28,11 +28,20 @@
   revision = "c2fcf88613f4fc155efcb81619424db6cbb5bce0"
 
 [[projects]]
-  digest = "1:9f50f0543353c50296cc01fd8b623198799bc93d34ef3a32b410aa8386fc6e60"
-  name = "github.com/franela/goreq"
+  digest = "1:ccd3fba1635c206fb610cd9430bba831febbd24a29377b4774838587f67ad631"
+  name = "github.com/globocom/goreq"
   packages = ["."]
   pruneopts = "UT"
-  revision = "bcd34c9993f899273c74baaa95e15386cd97b6e7"
+  revision = "a9548c3bca35c53223fa4e508b330b863e2afa42"
+  version = "2.0.0"
+
+[[projects]]
+  digest = "1:a0cefd27d12712af4b5018dc7046f245e1e3b5760e2e848c30b171b570708f9b"
+  name = "github.com/imdario/mergo"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "7c29201646fa3de8506f701213473dd407f19646"
+  version = "v0.3.7"
 
 [[projects]]
   digest = "1:ca955a9cd5b50b0f43d2cc3aeb35c951473eeca41b34eb67507f1dbcc0542394"
@@ -64,7 +73,7 @@
   input-imports = [
     "github.com/afex/hystrix-go/hystrix",
     "github.com/facebookgo/stackerr",
-    "github.com/franela/goreq",
+    "github.com/globocom/goreq",
     "gopkg.in/check.v1",
   ]
   solver-name = "gps-cdcl"
