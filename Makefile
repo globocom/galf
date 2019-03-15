@@ -7,11 +7,10 @@ SOURCE_FILES?=$$(go list ./... | grep -v /vendor/)
 
 ## Setup of the project
 setup:
-	@go get -u github.com/alecthomas/gometalinter
+	@go get -u github.com/golangci/golangci-lint/cmd/golangci-lint
 	@go get -u github.com/golang/dep/...
 	@go get -u golang.org/x/tools/cmd/cover
 	@make vendor-install
-	gometalinter --install --update
 
 ## Install dependencies of the project
 vendor-install:
@@ -35,7 +34,7 @@ vendor-update:
 ## Runs the project unit tests
 test:
 	@go test -v -covermode atomic -cover -coverprofile coverage.txt $(SOURCE_FILES)
-	@go tool vet . 2>&1 | grep -v '^vendor\/' | grep -v '^exit\ status\ 1' || true
+	@go vet . 2>&1 | grep -v '^vendor\/' | grep -v '^exit\ status\ 1' || true
 
 ## Run all the tests and opens the coverage report
 test-cover: test 
@@ -48,22 +47,7 @@ test-race:
 test-ci: lint test 
 
 lint: ## Run all the linters
-	gometalinter --vendor --disable-all \
-		--enable=deadcode \
-		--enable=ineffassign \
-		--enable=gosimple \
-		--enable=staticcheck \
-		--enable=gofmt \
-		--enable=goimports \
-		--enable=dupl \
-		--enable=misspell \
-		--enable=errcheck \
-		--enable=vet \
-		--enable=vetshadow \
-		--deadline=10m \
-		--aggregate \
-		./...
-
+	golangci-lint run
 
 COLOR_RESET = \033[0m
 COLOR_COMMAND = \033[36m
