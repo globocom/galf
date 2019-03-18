@@ -2,6 +2,7 @@
 
 SHELL = /bin/bash
 .DEFAULT_GOAL := help
+LAST_TAG := `git describe --tags`
 
 SOURCE_FILES?=$$(go list ./... | grep -v /vendor/)
 
@@ -48,6 +49,20 @@ test-ci: lint test
 
 lint: ## Run all the linters
 	golangci-lint run
+
+## Release of the project
+release:
+	@printf "\n"; \
+	read -p "Tag ($(LAST_TAG)): "; \
+	if [ ! "$$REPLY" ]; then \
+		printf "\n${COLOR_RED}"; \
+		echo "Invalid tag."; \
+		exit 1; \
+	fi; \
+	TAG=$$REPLY; \
+	git tag -s $$TAG -m "$$TAG"; \
+	git push origin $$TAG
+
 
 COLOR_RESET = \033[0m
 COLOR_COMMAND = \033[36m
