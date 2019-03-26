@@ -3,6 +3,7 @@ package galf
 import (
 	"fmt"
 	"net/http"
+	"sync"
 
 	"github.com/afex/hystrix-go/hystrix"
 	check "gopkg.in/check.v1"
@@ -130,4 +131,78 @@ func (tms *tokenManagerSuite) TestTokenManagerRetryOk(c *check.C) {
 	c.Assert(retries, check.Equals, DefaultTokenMaxRetries)
 	c.Assert(token.TokenType, check.Equals, "Bearer")
 	c.Assert(token.isValid(), check.Equals, true)
+}
+
+func (tms *tokenManagerSuite) TestGetTokenConcurrencyCalls(c *check.C) {
+	var expire = 100
+
+	HystrixConfigureCommand(bsGatewayToken, bsGatewayTokenConfig)
+	ts := newTestServerCustom(handleToken(expire))
+	tm := NewTokenManager(
+		ts.URL+"/token",
+		"ClientId",
+		"ClientSecret",
+		tokenOptions,
+	)
+
+	c.Assert(tm.Authorization, check.Equals, "Basic Q2xpZW50SWQ6Q2xpZW50U2VjcmV0")
+
+	goroutines := 3
+
+	type result struct {
+		token *Token
+		err   error
+	}
+	tokens := make(chan result, goroutines)
+	var wg sync.WaitGroup
+	for n := 0; n < goroutines; n++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			token, err := tm.GetToken()
+			res := result{
+				token,
+				err,
+			}
+			tokens <- res
+		}()
+	}
+
+	wg.Wait()
+	close(tokens)
+
+	for item := range tokens {
+		c.Assert(item.err, check.IsNil)
+		c.Assert(item.err, check.IsNil)
+		c.Assert(item.token, check.NotNil)
+		c.Assert(item.token.TokenType, check.Equals, "Bearer")
+		c.Assert(item.token.isValid(), check.Equals, true)
+	}
+}
+
+func (tms *tokenManagerSuite) BenchmarkTokenManagerConcurrencyCalls(c *check.C) {
+	var expire = 100
+
+	HystrixConfigureCommand(bsGatewayToken, bsGatewayTokenConfig)
+	ts := newTestServerCustom(handleToken(expire))
+	tm := NewTokenManager(
+		ts.URL+"/token",
+		"ClientId",
+		"ClientSecret",
+		tokenOptions,
+	)
+
+	goroutines := 3
+	var wg sync.WaitGroup
+	for i := 0; i < c.N; i++ {
+		for n := 0; n < goroutines; n++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_, _ = tm.GetToken()
+			}()
+		}
+	}
+
+	wg.Wait()
 }

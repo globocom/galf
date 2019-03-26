@@ -62,12 +62,12 @@ func NewTokenManager(tokenEndPoint string, clientId string, clientSecret string,
 func (tm *OAuthTokenManager) GetToken() (*Token, error) {
 	var err error
 
+	tm.mutex.Lock()
+	defer tm.mutex.Unlock()
 	if tm.isValid() {
 		return tm.token, nil
 	}
 
-	tm.mutex.Lock()
-	defer tm.mutex.Unlock()
 	for i := 1; i <= tm.Options.MaxRetries; i++ {
 
 		if tm.isValid() {
