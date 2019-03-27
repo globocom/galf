@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/afex/hystrix-go/hystrix"
@@ -303,59 +302,6 @@ func (cs *clientSuite) TestHystrixConfigNotFoundClient(c *check.C) {
 	c.Assert(err, check.NotNil)
 	c.Assert(err.Error(), check.Equals, "Hystrix config name not found: "+hystrixConfigName)
 	c.Assert(resp, check.IsNil)
-}
-
-func (cs *clientSuite) TestHystrixMultithreadedClient(c *check.C) {
-	ts := newTestServerCustom(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, `{"hystrix": "OK"}`)
-	})
-	defer ts.Close()
-
-	maxConcurrentRequests := 5
-	hystrixConfig := hystrix.CommandConfig{
-		Timeout:                1000,
-		SleepWindow:            2000,
-		RequestVolumeThreshold: 100,
-		MaxConcurrentRequests:  maxConcurrentRequests,
-	}
-
-	hystrixConfigName := "hystrixConfigNameMultithreaded"
-	HystrixConfigureCommand(hystrixConfigName, hystrixConfig)
-	clientOptions := NewClientOptions(
-		DefaultClientTimeout,
-		false,
-		DefaultClientMaxRetries,
-		hystrixConfigName,
-	)
-
-	exceedRequests := 3
-	numThreads := maxConcurrentRequests + exceedRequests
-	var numCreates int32
-	var finishLine sync.WaitGroup
-	finishLine.Add(numThreads)
-	client := NewClient(clientOptions)
-	for i := 0; i < numThreads; i++ {
-		go func() {
-			defer finishLine.Done()
-
-			url := fmt.Sprintf("%s/hystrixmultithreaded/feed/1", ts.URL)
-			resp, err := client.Get(url)
-			if err != nil {
-				atomic.AddInt32(&numCreates, 1)
-				c.Assert(err.Error(), check.Equals, "hystrix: max concurrency")
-				c.Assert(resp, check.IsNil)
-			} else {
-				c.Assert(err, check.IsNil)
-				c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
-				body, _ := resp.Body.ToString()
-				c.Assert(body, check.Equals, `{"hystrix": "OK"}`)
-			}
-		}()
-	}
-	finishLine.Wait()
-
-	c.Assert(numCreates, check.Equals, int32(exceedRequests))
 }
 
 func (cs *clientSuite) TestGetClientRequestOptionsHeader(c *check.C) {
