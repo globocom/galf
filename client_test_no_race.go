@@ -1,5 +1,13 @@
 // +build !race
 
+/*
+* Go OAuth2 Client
+*
+* MIT License
+*
+* Copyright (c) 2015 Globo.com
+ */
+
 package galf
 
 import (
