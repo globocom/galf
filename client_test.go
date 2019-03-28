@@ -315,6 +315,7 @@ func (cs *clientSuite) TestHystrixConfigNotFoundClient(c *check.C) {
 
 func (cs *clientSuite) TestHystrixMultithreadedClient(c *check.C) {
 	ts := newTestServerCustom(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, `{"hystrix": "OK"}`)
 	})
