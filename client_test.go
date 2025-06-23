@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -511,7 +512,6 @@ func (cs *clientSuite) TestBackstageScenario(c *check.C) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Connection", "keep-alive")
 		w.Header().Set("Keep-Alive", "timeout=60, max=10000")
-		w.WriteHeader(http.StatusOK)
 
 		path := r.URL.Path
 		if strings.Contains(path, "/error") {
@@ -520,6 +520,7 @@ func (cs *clientSuite) TestBackstageScenario(c *check.C) {
 			return
 		}
 
+		w.WriteHeader(http.StatusOK)
 		fmt.Fprint(w, `{"id": 123, "name": "backstage-item", "status": "active"}`)
 	}))
 
@@ -646,4 +647,163 @@ func (c *Client) GetAverageResponseTime() time.Duration {
 
 	totalTime := atomic.LoadInt64((*int64)(&c.metrics.responseTimeTotal))
 	return time.Duration(totalTime) / time.Duration(requests)
+}
+
+func (cs *clientSuite) TestKeepAliveComparison(c *check.C) {
+	c.Log("Starting Keep-Alive Comparison Test...")
+
+	serverHandler := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Connection", "keep-alive")
+		w.Header().Set("Keep-Alive", "timeout=60, max=10000")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `{"id": 123, "status": "ok"}`)
+	}
+
+	runTest := func(keepAliveEnabled bool) (int, int32, time.Duration) {
+		var connectionCounter int32
+		ts := httptest.NewUnstartedServer(http.HandlerFunc(serverHandler))
+
+		countingListener := &countingListener{
+			Listener: ts.Listener,
+			counter:  &connectionCounter,
+		}
+
+		ts.Listener = countingListener
+		ts.Start()
+		defer ts.Close()
+
+		c.Logf("Running test with keep-alive %s", map[bool]string{true: "ENABLED", false: "DISABLED"}[keepAliveEnabled])
+
+		dialer := &net.Dialer{
+			Timeout:   time.Second,
+			KeepAlive: 30 * time.Second,
+		}
+
+		transport := &http.Transport{
+			DialContext:           dialer.DialContext,
+			MaxIdleConns:          100,
+			MaxIdleConnsPerHost:   100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+			DisableKeepAlives:     !keepAliveEnabled,
+		}
+
+		customClient := &http.Client{Transport: transport}
+		SetCustomHTTPClient(customClient)
+
+		var keepAliveConfig *KeepAliveConfig
+		if keepAliveEnabled {
+			keepAliveConfig = &KeepAliveConfig{
+				Enabled:             true,
+				KeepAliveTime:       30 * time.Second,
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 100,
+				IdleConnTimeout:     90 * time.Second,
+			}
+		} else {
+			keepAliveConfig = &KeepAliveConfig{
+				Enabled: false,
+			}
+		}
+
+		clientOptions := ClientOptions{
+			Timeout:         5 * time.Second,
+			MaxRetries:      1,
+			EnableMetrics:   true,
+			KeepAliveConfig: keepAliveConfig,
+		}
+
+		client := NewClient(clientOptions)
+
+		const totalRequests = 1000
+		const numWorkers = 10
+
+		requestChan := make(chan int, numWorkers)
+		var wg sync.WaitGroup
+
+		for w := 0; w < numWorkers; w++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for range requestChan {
+					path := fmt.Sprintf("/test/%d", rand.Intn(100))
+					url := ts.URL + path
+
+					resp, err := client.Get(url)
+					if err == nil {
+						_, _ = resp.Body.ToString()
+					}
+
+					time.Sleep(time.Duration(rand.Intn(5)) * time.Millisecond)
+				}
+			}()
+		}
+
+		startTime := time.Now()
+
+		for i := 0; i < totalRequests; i++ {
+			requestChan <- i
+		}
+
+		close(requestChan)
+		wg.Wait()
+
+		duration := time.Since(startTime)
+
+		c.Logf("  Test completed: %d requests, %d connections in %v",
+			totalRequests, atomic.LoadInt32(&connectionCounter), duration)
+
+		return totalRequests, atomic.LoadInt32(&connectionCounter), duration
+	}
+
+	c.Log("=== TESTING WITH KEEP-ALIVE ENABLED ===")
+	totalRequests, withKeepAliveConnections, withKeepAliveDuration := runTest(true)
+
+	c.Log("=== TESTING WITH KEEP-ALIVE DISABLED ===")
+	_, withoutKeepAliveConnections, withoutKeepAliveDuration := runTest(false)
+
+	withKeepAliveReused := totalRequests - int(withKeepAliveConnections)
+	withKeepAliveReusePercentage := float64(withKeepAliveReused) * 100 / float64(totalRequests)
+	withKeepAliveReqPerConn := float64(totalRequests) / float64(withKeepAliveConnections)
+
+	withoutKeepAliveReused := totalRequests - int(withoutKeepAliveConnections)
+	withoutKeepAliveReusePercentage := float64(withoutKeepAliveReused) * 100 / float64(totalRequests)
+	withoutKeepAliveReqPerConn := float64(totalRequests) / float64(withoutKeepAliveConnections)
+
+	speedImprovement := float64(withoutKeepAliveDuration) / float64(withKeepAliveDuration)
+
+	resultStr := fmt.Sprintf("\nKEEP-ALIVE CONNECTION REUSE COMPARISON (%d requests):\n\n"+
+		"WITH KEEP-ALIVE:\n"+
+		"  • TCP connections opened: %d\n"+
+		"  • Connection reuse: %.2f%%\n"+
+		"  • Requests per connection: %.2f\n"+
+		"  • Total duration: %v\n\n"+
+		"WITHOUT KEEP-ALIVE:\n"+
+		"  • TCP connections opened: %d\n"+
+		"  • Connection reuse: %.2f%%\n"+
+		"  • Requests per connection: %.2f\n"+
+		"  • Total duration: %v\n\n"+
+		"PERFORMANCE IMPACT:\n"+
+		"  • Speed improvement with keep-alive: %.2fx faster\n"+
+		"  • Connections saved: %d\n",
+		totalRequests,
+		withKeepAliveConnections, withKeepAliveReusePercentage, withKeepAliveReqPerConn, withKeepAliveDuration,
+		withoutKeepAliveConnections, withoutKeepAliveReusePercentage, withoutKeepAliveReqPerConn, withoutKeepAliveDuration,
+		speedImprovement, withoutKeepAliveConnections-withKeepAliveConnections)
+
+	c.Log("=== KEEP-ALIVE TEST RESULTS ===")
+	c.Log(resultStr)
+	fmt.Fprintln(os.Stderr, "\n"+resultStr)
+
+	os.WriteFile("keepalive_test_results.txt", []byte(resultStr), 0644)
+
+	c.Assert(withKeepAliveConnections < withoutKeepAliveConnections/2, check.Equals, true,
+		check.Commentf("Keep-alive not working properly.\n\n%s", resultStr))
+
+	c.Assert(withKeepAliveDuration < withoutKeepAliveDuration, check.Equals, true,
+		check.Commentf("Keep-alive did not improve performance"))
+
+	c.Log("Keep-alive test completed successfully. Full results in keepalive_test_results.txt")
 }
