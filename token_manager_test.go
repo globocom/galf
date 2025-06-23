@@ -109,7 +109,7 @@ func (tms *tokenManagerSuite) TestTokenManagerRetryOk(c *check.C) {
 	ts := newTestServerCustom(func(w http.ResponseWriter, r *http.Request) {
 		retries = retries + 1
 		if retries > 1 {
-			fmt.Fprint(w, fmt.Sprintf(`{"access_token": "nonenoenoe", "token_type": "bearer", "expires_in": %d}`, 100))
+			fmt.Fprintf(w, `{"access_token": "nonenoenoe", "token_type": "bearer", "expires_in": %d}`, 100)
 		} else {
 			w.WriteHeader(http.StatusBadGateway)
 		}

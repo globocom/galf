@@ -42,6 +42,6 @@ func newTestServerToken(expireIn ...int) *httptest.Server {
 
 func handleToken(expire int) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, fmt.Sprintf(`{"access_token": "nonenoenoe", "token_type": "bearer", "expires_in": %d}`, expire))
+		fmt.Fprintf(w, `{"access_token": "nonenoenoe", "token_type": "bearer", "expires_in": %d}`, expire)
 	}
 }

@@ -2,6 +2,8 @@ package galf
 
 import (
 	"fmt"
+	"math/rand"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,7 +12,6 @@ import (
 	"time"
 
 	"github.com/afex/hystrix-go/hystrix"
-	"github.com/franela/goreq"
 
 	"gopkg.in/check.v1"
 )
@@ -54,7 +55,7 @@ func (cs *clientSuite) TestPostClient(c *check.C) {
 	})
 	defer ts.Close()
 
-	assertPost := func(resp *goreq.Response, err error) {
+	assertPost := func(resp *Response, err error) {
 		c.Assert(err, check.IsNil)
 		c.Assert(resp.StatusCode, check.Equals, http.StatusCreated)
 
@@ -101,7 +102,7 @@ func (cs *clientSuite) TestPutClient(c *check.C) {
 	})
 	defer ts.Close()
 
-	assertPut := func(resp *goreq.Response, err error) {
+	assertPut := func(resp *Response, err error) {
 		c.Assert(err, check.IsNil)
 		c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
 
@@ -360,7 +361,6 @@ func (cs *clientSuite) TestHystrixMultithreadedClient(c *check.C) {
 }
 
 func (cs *clientSuite) TestGetClientRequestOptionsHeader(c *check.C) {
-
 	ts := newTestServerCustom(func(rw http.ResponseWriter, r *http.Request) {
 		responseHeaders(rw, r)
 		rw.WriteHeader(http.StatusOK)
@@ -381,7 +381,6 @@ func (cs *clientSuite) TestGetClientRequestOptionsHeader(c *check.C) {
 }
 
 func (cs *clientSuite) TestGetClientRequestOptionsHeaders(c *check.C) {
-
 	ts := newTestServerCustom(func(rw http.ResponseWriter, r *http.Request) {
 		responseHeaders(rw, r)
 		rw.WriteHeader(http.StatusOK)
@@ -407,19 +406,104 @@ func (cs *clientSuite) TestGetClientRequestOptionsHeaders(c *check.C) {
 }
 
 func (cs *clientSuite) TestSetCustomHTTPClient(c *check.C) {
-	currentClient := goreq.DefaultClient
-	currentTransport := goreq.DefaultTransport
+	originalTransport := defaultTransport
+	originalClient := httpClientInstance
 
 	defer func() {
-		goreq.DefaultClient = currentClient
-		goreq.DefaultTransport = currentTransport
+		defaultTransport = originalTransport
+		httpClientInstance = originalClient
 	}()
 
 	customClient := &http.Client{Timeout: time.Hour}
 	SetCustomHTTPClient(customClient)
 
-	c.Assert(goreq.DefaultClient, check.Not(check.Equals), defaultClient)
-	c.Assert(goreq.DefaultClient.Timeout, check.Equals, time.Hour)
+	c.Assert(httpClientInstance, check.Not(check.Equals), originalClient)
+	c.Assert(httpClientInstance.Timeout, check.Equals, time.Hour)
+}
+
+func (cs *clientSuite) TestKeepAliveConnections(c *check.C) {
+	var connectionCounter int32
+
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Always set these headers for keep-alive
+		w.Header().Set("Connection", "keep-alive")
+		w.Header().Set("Keep-Alive", "timeout=30, max=1000")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `{"status": "ok"}`)
+	}))
+
+	countingListener := &countingListener{
+		Listener: ts.Listener,
+		counter:  &connectionCounter,
+	}
+
+	ts.Listener = countingListener
+	ts.Start()
+	defer ts.Close()
+
+	// Create a transport with explicit keep-alive settings
+	dialer := &net.Dialer{
+		Timeout:   time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+
+	transport := &http.Transport{
+		DialContext:           dialer.DialContext,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   100, // Important: must be >= number of requests
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		DisableKeepAlives:     false,
+		ForceAttemptHTTP2:     false, // Disable HTTP/2 for more predictable behavior
+	}
+
+	customClient := &http.Client{Transport: transport}
+	SetCustomHTTPClient(customClient)
+
+	// Create a client with default options (will use our custom HTTP client)
+	client := NewClient()
+	url := ts.URL + "/connection-reuse-test"
+
+	// Make multiple sequential requests
+	numRequests := 10
+	for i := 0; i < numRequests; i++ {
+		resp, err := client.Get(url)
+		c.Assert(err, check.IsNil)
+		c.Assert(resp.StatusCode, check.Equals, http.StatusOK)
+
+		// Important: fully read and close the body
+		body, err := resp.Body.ToString()
+		c.Assert(err, check.IsNil)
+		c.Assert(body, check.Equals, `{"status": "ok"}`)
+
+		// Small delay to ensure connection pool management happens
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	// Give time for any connection management to complete
+	time.Sleep(100 * time.Millisecond)
+
+	// Log the actual connection count for debugging
+	connCount := atomic.LoadInt32(&connectionCounter)
+	c.Logf("Made %d requests with %d connections", numRequests, connCount)
+
+	// With proper keep-alive, we should have fewer connections than requests
+	// Usually we'd expect just 1-2 connections for 10 requests
+	c.Assert(connCount < int32(numRequests), check.Equals, true)
+}
+
+type countingListener struct {
+	net.Listener
+	counter *int32
+}
+
+func (l *countingListener) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err == nil {
+		atomic.AddInt32(l.counter, 1)
+	}
+	return conn, err
 }
 
 func responseHeaders(rw http.ResponseWriter, r *http.Request) {
@@ -428,4 +512,180 @@ func responseHeaders(rw http.ResponseWriter, r *http.Request) {
 			rw.Header().Set(name, v)
 		}
 	}
+}
+
+func (cs *clientSuite) TestBackstageScenario(c *check.C) {
+	// Structure to store metrics
+	type testMetrics struct {
+		totalRequests   int
+		successRequests int32
+		failedRequests  int32
+		startTime       time.Time
+	}
+
+	metrics := testMetrics{
+		totalRequests: 100000,
+		startTime:     time.Now(),
+	}
+
+	// Set up server with a counter for new connections
+	var connectionCounter int32
+
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Simulate a JSON response like backstage would return
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Connection", "keep-alive")
+		w.Header().Set("Keep-Alive", "timeout=60, max=10000")
+		w.WriteHeader(http.StatusOK)
+
+		// Return different responses based on URL path
+		path := r.URL.Path
+		if strings.Contains(path, "/error") {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprint(w, `{"error": "Something went wrong"}`)
+			return
+		}
+
+		// Normal response
+		fmt.Fprint(w, `{"id": 123, "name": "backstage-item", "status": "active"}`)
+	}))
+
+	// Use a counting listener to track new connections
+	countingListener := &countingListener{
+		Listener: ts.Listener,
+		counter:  &connectionCounter,
+	}
+
+	ts.Listener = countingListener
+	ts.Start()
+	defer ts.Close()
+
+	// Configure client for optimal keep-alive
+	dialer := &net.Dialer{
+		Timeout:   time.Second,
+		KeepAlive: 60 * time.Second,
+	}
+
+	transport := &http.Transport{
+		DialContext:           dialer.DialContext,
+		MaxIdleConns:          1000,
+		MaxIdleConnsPerHost:   1000,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		DisableKeepAlives:     false,
+		MaxConnsPerHost:       1000,
+	}
+
+	customClient := &http.Client{Transport: transport}
+	SetCustomHTTPClient(customClient)
+
+	// Create a client with keep-alive configuration
+	clientOptions := ClientOptions{
+		Timeout:    5 * time.Second,
+		MaxRetries: 2,
+		KeepAliveConfig: &KeepAliveConfig{
+			Enabled:             true,
+			KeepAliveTime:       60 * time.Second,
+			MaxIdleConns:        1000,
+			MaxIdleConnsPerHost: 1000,
+			IdleConnTimeout:     90 * time.Second,
+		},
+		EnableMetrics: true,
+	}
+
+	client := NewClient(clientOptions)
+	baseURL := ts.URL
+
+	// Use a worker pool to make requests in parallel
+	const numWorkers = 50
+	requestChan := make(chan int, numWorkers)
+	var wg sync.WaitGroup
+
+	// Add workers
+	for w := 0; w < numWorkers; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range requestChan {
+				// Randomly choose between success and error endpoints
+				var url string
+				if rand.Intn(10) < 1 { // 10% chance of error
+					url = fmt.Sprintf("%s/error/%d", baseURL, rand.Intn(10000))
+				} else {
+					url = fmt.Sprintf("%s/item/%d", baseURL, rand.Intn(10000))
+				}
+
+				// Make request
+				resp, err := client.Get(url)
+
+				// Track results
+				if err != nil {
+					atomic.AddInt32(&metrics.failedRequests, 1)
+					continue
+				}
+
+				// Always read and close the body to enable connection reuse
+				_, _ = resp.Body.ToString()
+				if resp.StatusCode == http.StatusOK {
+					atomic.AddInt32(&metrics.successRequests, 1)
+				} else {
+					atomic.AddInt32(&metrics.failedRequests, 1)
+				}
+
+				time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+			}
+		}()
+	}
+
+	// Send all requests to the workers
+	for i := 0; i < metrics.totalRequests; i++ {
+		requestChan <- i
+	}
+
+	close(requestChan)
+	wg.Wait()
+
+	duration := time.Since(metrics.startTime)
+	finalConnectionCount := atomic.LoadInt32(&connectionCounter)
+	successCount := atomic.LoadInt32(&metrics.successRequests)
+	failedCount := atomic.LoadInt32(&metrics.failedRequests)
+
+	// Calculate connection reuse statistics
+	connectionsReused := metrics.totalRequests - int(finalConnectionCount)
+	reusePercentage := float64(connectionsReused) * 100 / float64(metrics.totalRequests)
+	requestsPerConnection := float64(metrics.totalRequests) / float64(finalConnectionCount)
+
+	// Final single summary log
+	c.Logf("BACKSTAGE TEST RESULTS - %d requests in %v:\n"+
+		"  • Successful requests: %d\n"+
+		"  • Failed requests: %d\n"+
+		"  • TCP connections opened: %d\n"+
+		"  • Connection reuse: %.2f%%\n"+
+		"  • Requests per connection: %.2f\n"+
+		"  • Avg response time: %v",
+		metrics.totalRequests, duration,
+		successCount, failedCount,
+		finalConnectionCount,
+		reusePercentage,
+		requestsPerConnection,
+		client.GetAverageResponseTime())
+
+	// Assert that we have significant connection reuse (>90%)
+	c.Assert(finalConnectionCount < int32(metrics.totalRequests/10), check.Equals, true,
+		check.Commentf("Expected at least 90%% connection reuse, but got only %.1f%%", reusePercentage))
+
+	// Assert that we had successful requests
+	c.Assert(successCount > 0, check.Equals, true)
+}
+
+// GetAverageResponseTime returns the average response time from metrics
+func (c *Client) GetAverageResponseTime() time.Duration {
+	requests := atomic.LoadInt64(&c.metrics.requestCount)
+	if requests == 0 {
+		return 0
+	}
+
+	totalTime := atomic.LoadInt64((*int64)(&c.metrics.responseTimeTotal))
+	return time.Duration(totalTime) / time.Duration(requests)
 }
